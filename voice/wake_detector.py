@@ -3,10 +3,11 @@ import threading
 import sys
 
 class WakeWordDetector:
-    def __init__(self, config_manager, stt_manager, wake_callback):
+    def __init__(self, config_manager, stt_manager, wake_callback, noise_callback=None):
         self.config_manager = config_manager
         self.stt_manager = stt_manager
         self.wake_callback = wake_callback
+        self.noise_callback = noise_callback
         
         self.is_listening = False
         self.thread = None
@@ -34,6 +35,7 @@ class WakeWordDetector:
     def _listener_loop(self):
         """Listens continuously to ambient noise. When volume spikes, validate using cloud STT."""
         import speech_recognition as sr
+        import struct
         
         recognizer = self.stt_manager.recognizer
         microphone = self.stt_manager.microphone
@@ -64,7 +66,18 @@ class WakeWordDetector:
                     # Listen for a very short duration (1.5 seconds max) to catch quick wake words
                     audio = recognizer.listen(source, timeout=1.0, phrase_time_limit=2.0)
                     
-                # We have captured some sound. Quickly transcribe it to see if it's the wake word
+                # Calculate volume (RMS) of raw audio bytes
+                raw_data = audio.get_raw_data()
+                count = len(raw_data) // 2
+                rms = 0.0
+                if count > 0:
+                    shorts = struct.unpack(f"{count}h", raw_data)
+                    sum_squares = sum(s * s for s in shorts)
+                    rms = (sum_squares / count) ** 0.5
+                
+                is_loud_noise = rms > 2500.0
+                
+                # Try to transcribe
                 lang_code = "en-US"
                 lang_lower = lang.lower()
                 if "bn" in lang_lower:
@@ -74,25 +87,27 @@ class WakeWordDetector:
                 else:
                     lang_code = "en-IN" if "in" in lang_lower else "en-US"
                     
-                # Standard check
-                text = recognizer.recognize_google(audio, language=lang_code).lower()
+                try:
+                    text = recognizer.recognize_google(audio, language=lang_code).lower()
+                except Exception:
+                    text = ""
                 
-                # Check if the configured wake word or a close match is in the captured text
-                # We also support a fallback wake word "claw"
+                # Check wake word
                 if cfg_wake_word in text or "claw" in text or "hello" in text or "friend" in text or "wake" in text:
                     print(f"[Wake Detector] TRIGGERED! Heard wake word match in: \"{text}\"")
-                    # Trigger callback!
                     self.wake_callback()
-                    # Sleep briefly after a trigger to avoid double triggering
                     time.sleep(5)
+                elif is_loud_noise and self.noise_callback:
+                    print(f"[Wake Detector] Loud noise detected (volume: {int(rms)}). Triggering snap callback.")
+                    self.noise_callback(rms)
+                    time.sleep(2.0)
+                    
             except sr.WaitTimeoutError:
                 # Normal timeout when no speech is detected
-                pass
-            except sr.UnknownValueError:
-                # Sound captured but not understood, normal in ambient noise
                 pass
             except Exception as e:
                 # General error, sleep briefly to prevent tight loops
                 time.sleep(0.5)
             
             time.sleep(0.1)
+

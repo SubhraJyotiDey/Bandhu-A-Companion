@@ -65,7 +65,7 @@ class CompanionDaemon:
         self.brain = ZeroClawClient(self.config_manager)
         
         # Wake word detector
-        self.wake_detector = WakeWordDetector(self.config_manager, self.stt, self.on_wake_trigger)
+        self.wake_detector = WakeWordDetector(self.config_manager, self.stt, self.on_wake_trigger, self.trigger_audio_reactive_snap)
         
         # Control flags
         self.is_running = False
@@ -110,6 +110,9 @@ class CompanionDaemon:
         self.scheduler_thread.daemon = True
         self.scheduler_thread.start()
         
+        # Trigger Startup eye gesture
+        self.servos.play_gesture("startup")
+        
         self.log("[Daemon] Companion Daemon successfully started in background.")
 
     def stop(self):
@@ -129,8 +132,8 @@ class CompanionDaemon:
         while self.is_running:
             enabled = self.config_manager.config.get("face_tracking", {}).get("enabled", True)
             
-            # Run tracking if enabled and not in manual override
-            if enabled and not self.servos.manual_override:
+            # Run tracking if enabled and not in manual override or active gesture
+            if enabled and not self.servos.manual_override and not self.servos.gesture_active:
                 face = self.sensor.get_primary_face()
                 
                 if face:
@@ -235,9 +238,8 @@ class CompanionDaemon:
         task_str = task_str.strip()
         if task_str.startswith("say:"):
             msg = task_str[4:].strip()
-            # Animate eyes to excited/surprised before speaking
-            self.servos.mood = "excited"
-            self.servos.trigger_blink()
+            # Play scanning gesture during alarm speech to alert the user
+            self.servos.play_gesture("scanning")
             self.tts.speak(msg)
             time.sleep(3)
             self.servos.mood = "neutral"
@@ -249,6 +251,7 @@ class CompanionDaemon:
                 pin = int(parts[1])
                 state = parts[2].lower() == "on"
                 self.gpio.set_pin_state(pin, state)
+                self.servos.play_gesture("nod") # nod to confirm GPIO action
                 self.log(f"[Scheduler] Executed GPIO task: Pin {pin} -> {state}")
 
     def on_wake_trigger(self):
@@ -263,11 +266,10 @@ class CompanionDaemon:
         self.voice_listening_active = True
         self.log("[Voice] Wake word detected! Starting interaction...")
         
-        # 1. Wake alert visual response (Eyelids wide open, center eyes, blink)
-        self.servos.mood = "surprised"
+        # 1. Wake alert visual response (Eyelids center, rapid double-blink)
         self.servos.set_target("yaw", 90)
         self.servos.set_target("pitch", 90)
-        self.servos.trigger_blink()
+        self.servos.trigger_double_blink()
         
         # Wait for blink to finish and establish "attentive" pose
         time.sleep(0.4)
@@ -309,13 +311,17 @@ class CompanionDaemon:
                 pin = int(match[0])
                 state = match[1].lower() == "on"
                 self.gpio.set_pin_state(pin, state)
+                self.servos.play_gesture("nod") # nod to confirm GPIO action
                 self.log(f"[Voice] Agent triggered tool: GPIO Pin {pin} set to {state}")
                 
-            # Apply mood expression changes
+            # Apply mood expression / gesture changes
             if mood_tag == "wink":
                 self.servos.trigger_wink()
             elif mood_tag == "blink":
                 self.servos.trigger_blink()
+            elif mood_tag in ["nod", "shake", "think", "shock", "scanning"]:
+                self.servos.play_gesture(mood_tag)
+                self.log(f"[Voice] Triggered gesture: {mood_tag}")
             elif mood_tag in ["happy", "sad", "angry", "surprised", "bored", "excited", "neutral"]:
                 self.servos.mood = mood_tag
                 self.log(f"[Voice] Eye expression set to: {mood_tag}")
@@ -337,3 +343,42 @@ class CompanionDaemon:
             self.servos.mood = "neutral"
             
         self.voice_listening_active = False
+
+    def trigger_audio_reactive_snap(self, volume=None):
+        """Snaps gaze to a random direction and flutters eyelids on loud noise."""
+        if self.voice_listening_active or self.tts.is_speaking:
+            return # Don't disrupt active speaking/listening session
+            
+        # Select random gaze coordinates within safe bounds
+        yaw_cfg = self.config_manager.config.get("servos", {}).get("yaw", {})
+        pitch_cfg = self.config_manager.config.get("servos", {}).get("pitch", {})
+        
+        # Safe ranges for a fast look-away: 60-120 yaw, 75-105 pitch
+        y_min = max(60.0, yaw_cfg.get("min_angle", 50.0))
+        y_max = min(120.0, yaw_cfg.get("max_angle", 130.0))
+        p_min = max(75.0, pitch_cfg.get("min_angle", 60.0))
+        p_max = min(105.0, pitch_cfg.get("max_angle", 120.0))
+        
+        import random
+        target_yaw = random.uniform(y_min, y_max)
+        target_pitch = random.uniform(p_min, p_max)
+        
+        def snap_run():
+            self.log(f"[Audio-Reactive] Loud noise spike detected! Snapping eyes to ({round(target_yaw, 1)}, {round(target_pitch, 1)})")
+            
+            orig_mood = self.servos.mood
+            
+            # Snap gaze target
+            self.servos.set_target("yaw", target_yaw)
+            self.servos.set_target("pitch", target_pitch)
+            
+            # Set mood to surprised to trigger eyelid flutter
+            self.servos.mood = "surprised"
+            
+            # Wait for the snap and look hold (1.8 seconds)
+            time.sleep(1.8)
+            
+            # Restore mood
+            self.servos.mood = "neutral" if orig_mood == "surprised" else orig_mood
+            
+        threading.Thread(target=snap_run, daemon=True).start()

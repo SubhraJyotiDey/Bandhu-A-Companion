@@ -15,6 +15,7 @@ class TTSManager:
         
         # Audio lock to prevent speech overlapping
         self.speech_lock = threading.Lock()
+        self.is_speaking = False
         
         # Temporary file path for audio outputs
         self.temp_audio_file = os.path.join(
@@ -96,8 +97,10 @@ class TTSManager:
         threading.Thread(target=self._speak_thread, args=(text, lang, provider), daemon=True).start()
 
     def _speak_thread(self, text, lang, provider):
-        with self.speech_lock:
-            print(f"[TTS] Speaking in ({lang}) via ({provider}): {text}")
+        self.is_speaking = True
+        try:
+            with self.speech_lock:
+                print(f"[TTS] Speaking in ({lang}) via ({provider}): {text}")
             
             # Clean text of tags like [expression: happy] or [mood: excited]
             import re
@@ -186,3 +189,5 @@ class TTSManager:
                         os.remove(f)
                     except Exception:
                         pass
+        finally:
+            self.is_speaking = False

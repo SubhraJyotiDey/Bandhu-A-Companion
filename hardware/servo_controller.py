@@ -45,6 +45,7 @@ class ServoController:
         self.blink_progress = 0.0 # 0.0 (open) to 1.0 (fully closed)
         self.manual_override = False # If true, manual controls from portal override everything
         self.face_tracking_active = False
+        self.gesture_active = False
         
         # Eyelid flutter state (triggered on mood transitions)
         self._flutter_active = False
@@ -379,6 +380,143 @@ class ServoController:
         
         self._flutter_active = False
 
+    def play_gesture(self, name):
+        """Plays a predefined eye gesture in a separate thread if not already running a gesture."""
+        if self.gesture_active:
+            return False
+        name = name.lower()
+        if name in ["startup", "nod", "shake", "think", "shock", "scanning"]:
+            threading.Thread(target=self._gesture_thread, args=(name,), daemon=True).start()
+            return True
+        return False
+
+    def _gesture_thread(self, name):
+        self.gesture_active = True
+        try:
+            if name == "startup":
+                # Start with eyes closed and looking down-center
+                self.target_pos["left_upper_eyelid"] = 125.0
+                self.target_pos["right_upper_eyelid"] = 125.0
+                self.target_pos["left_lower_eyelid"] = 80.0
+                self.target_pos["right_lower_eyelid"] = 80.0
+                self.target_pos["yaw"] = 90.0
+                self.target_pos["pitch"] = 115.0 # looking down
+                # Snap current position to target closed state instantly
+                for k in self.names:
+                    self.current_pos[k] = self.target_pos[k]
+                time.sleep(0.5)
+                
+                # Easing: Slowly flutter open (3 rapid partial blinks)
+                # First partial open:
+                self.target_pos["left_upper_eyelid"] = 90.0
+                self.target_pos["right_upper_eyelid"] = 90.0
+                time.sleep(0.15)
+                self.target_pos["left_upper_eyelid"] = 110.0
+                self.target_pos["right_upper_eyelid"] = 110.0
+                time.sleep(0.1)
+                
+                # Second open:
+                self.target_pos["left_upper_eyelid"] = 70.0
+                self.target_pos["right_upper_eyelid"] = 70.0
+                self.target_pos["pitch"] = 95.0 # look up slightly
+                time.sleep(0.2)
+                self.target_pos["left_upper_eyelid"] = 85.0
+                self.target_pos["right_upper_eyelid"] = 85.0
+                time.sleep(0.1)
+                
+                # Fully open & center
+                self.target_pos["left_upper_eyelid"] = 60.0
+                self.target_pos["right_upper_eyelid"] = 60.0
+                self.target_pos["left_lower_eyelid"] = 120.0
+                self.target_pos["right_lower_eyelid"] = 120.0
+                self.target_pos["pitch"] = 90.0
+                time.sleep(0.3)
+                
+                # Double blink
+                self.trigger_double_blink()
+                time.sleep(0.8)
+                
+            elif name == "nod":
+                orig_pitch = self.target_pos["pitch"]
+                for _ in range(2):
+                    self.target_pos["pitch"] = 105.0 # look down
+                    time.sleep(0.25)
+                    self.target_pos["pitch"] = 75.0  # look up
+                    time.sleep(0.25)
+                self.target_pos["pitch"] = orig_pitch
+                time.sleep(0.2)
+                
+            elif name == "shake":
+                orig_yaw = self.target_pos["yaw"]
+                for _ in range(2):
+                    self.target_pos["yaw"] = 70.0  # look left
+                    time.sleep(0.25)
+                    self.target_pos["yaw"] = 110.0 # look right
+                    time.sleep(0.25)
+                self.target_pos["yaw"] = orig_yaw
+                time.sleep(0.2)
+                
+            elif name == "think":
+                # Look up and left
+                self.target_pos["yaw"] = 75.0
+                self.target_pos["pitch"] = 75.0
+                # Asymmetric squint: left eye more closed than right
+                self.target_pos["left_upper_eyelid"] = 90.0
+                self.target_pos["left_lower_eyelid"] = 100.0
+                self.target_pos["right_upper_eyelid"] = 70.0
+                self.target_pos["right_lower_eyelid"] = 115.0
+                time.sleep(1.8)
+                
+                # Settle back to center
+                self.target_pos["yaw"] = 90.0
+                self.target_pos["pitch"] = 90.0
+                self.target_pos["left_upper_eyelid"] = 60.0
+                self.target_pos["left_lower_eyelid"] = 120.0
+                self.target_pos["right_upper_eyelid"] = 60.0
+                self.target_pos["right_lower_eyelid"] = 120.0
+                time.sleep(0.3)
+                
+            elif name == "shock":
+                orig_yaw = self.target_pos["yaw"]
+                orig_pitch = self.target_pos["pitch"]
+                # Wide eyelids baseline
+                self.target_pos["left_upper_eyelid"] = 45.0
+                self.target_pos["left_lower_eyelid"] = 135.0
+                self.target_pos["right_upper_eyelid"] = 45.0
+                self.target_pos["right_lower_eyelid"] = 135.0
+                
+                # Quick micro-shake
+                for _ in range(3):
+                    self.target_pos["yaw"] = orig_yaw - 8.0
+                    time.sleep(0.1)
+                    self.target_pos["yaw"] = orig_yaw + 8.0
+                    time.sleep(0.1)
+                
+                self.target_pos["yaw"] = orig_yaw
+                time.sleep(1.0)
+                
+                # Slow blink to recover
+                self.trigger_blink()
+                time.sleep(0.4)
+                
+            elif name == "scanning":
+                # Look far left to far right with wide eyes
+                self.target_pos["left_upper_eyelid"] = 50.0
+                self.target_pos["left_lower_eyelid"] = 130.0
+                self.target_pos["right_upper_eyelid"] = 50.0
+                self.target_pos["right_lower_eyelid"] = 130.0
+                
+                for _ in range(2):
+                    self.target_pos["yaw"] = 60.0  # look left
+                    time.sleep(0.4)
+                    self.target_pos["yaw"] = 120.0 # look right
+                    time.sleep(0.4)
+                
+                self.target_pos["yaw"] = 90.0
+                time.sleep(0.3)
+        finally:
+            self.gesture_active = False
+
     # ------------------------------------------------------------------
     # MOOD-DEPENDENT EYELID BASELINES
     # ------------------------------------------------------------------
@@ -570,7 +708,7 @@ class ServoController:
             # ----------------------------------------------------------
             # 1. AUTONOMOUS ATTENTION SYSTEM (weighted gaze shifts)
             # ----------------------------------------------------------
-            if not self.manual_override and not self.face_tracking_active:
+            if not self.manual_override and not self.face_tracking_active and not self.gesture_active:
                 
                 # --- Curiosity perk-up behavior (periodic alert snap) ---
                 if now > next_curiosity_time and not self._curiosity_active:
@@ -694,7 +832,7 @@ class ServoController:
             # ----------------------------------------------------------
             # 2. EYELID TRACKING, MOOD, BLINK & FLUTTER OVERRIDES
             # ----------------------------------------------------------
-            if not self.manual_override:
+            if not self.manual_override and not self.gesture_active:
                 # Trigger automatic random blink (with mood-variable interval)
                 if now > next_blink_time:
                     # 25% chance of double-blink (natural human pattern)
@@ -868,5 +1006,6 @@ class ServoController:
             "manual_override": self.manual_override,
             "mock": self.mock,
             "blink_active": self.blink_active,
-            "blink_side": self.blink_side
+            "blink_side": self.blink_side,
+            "gesture_active": self.gesture_active
         }

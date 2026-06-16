@@ -242,6 +242,22 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
         daemon.on_wake_trigger()
         return jsonify({"success": True})
 
+    @app.route("/api/voice/noise", methods=["POST"])
+    def trigger_noise():
+        """Simulates a sudden loud noise trigger from UI."""
+        daemon.trigger_audio_reactive_snap(volume=4500.0)
+        return jsonify({"success": True})
+
+    @app.route("/api/servo/gesture", methods=["POST"])
+    def trigger_gesture():
+        """Direct portal button gesture execution."""
+        data = request.json or {}
+        gesture = data.get("gesture")
+        if gesture:
+            success = daemon.servos.play_gesture(gesture)
+            return jsonify({"success": success})
+        return jsonify({"success": False, "error": "Missing gesture param"})
+
     @app.route("/api/voice/send", methods=["POST"])
     def send_text_direct():
         """Sends a text question directly, speaking response (useful for text-only mock testing)."""
@@ -272,11 +288,14 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 pin_num = int(match[0])
                 pin_state = match[1].lower() == "on"
                 daemon.gpio.set_pin_state(pin_num, pin_state)
+                daemon.servos.play_gesture("nod") # nod to confirm GPIO action
                 
             if mood_tag == "wink":
                 daemon.servos.trigger_wink()
             elif mood_tag == "blink":
                 daemon.servos.trigger_blink()
+            elif mood_tag in ["nod", "shake", "think", "shock", "scanning"]:
+                daemon.servos.play_gesture(mood_tag)
             elif mood_tag in ["happy", "sad", "angry", "surprised", "bored", "excited", "neutral"]:
                 daemon.servos.mood = mood_tag
                 
@@ -323,6 +342,15 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 else:
                     return jsonify({"success": False, "error": "Invalid expression."})
                 return jsonify({"success": True, "message": f"Triggered expression '{expr}'."})
+                
+            elif tool == "play_gesture":
+                gesture = args.get("gesture")
+                if gesture in ["startup", "nod", "shake", "think", "shock", "scanning"]:
+                    success = daemon.servos.play_gesture(gesture)
+                    if success:
+                        return jsonify({"success": True, "message": f"Triggered gesture '{gesture}'."})
+                    return jsonify({"success": False, "error": "Gesture system is busy."})
+                return jsonify({"success": False, "error": "Invalid gesture name."})
                 
             elif tool == "toggle_gpio":
                 pin = int(args.get("pin"))

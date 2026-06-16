@@ -88,6 +88,21 @@ def handle_request(req):
                         }
                     },
                     {
+                        "name": "play_gesture",
+                        "description": "Trigger a predefined eye gesture sequence (startup, nod, shake, think, shock, scanning) on the companion's mechanical eyes.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "gesture": {
+                                    "type": "string",
+                                    "enum": ["startup", "nod", "shake", "think", "shock", "scanning"],
+                                    "description": "The gesture sequence to play."
+                                }
+                            },
+                            "required": ["gesture"]
+                        }
+                    },
+                    {
                         "name": "toggle_gpio",
                         "description": "Turn a physical Raspberry Pi GPIO output pin ON (high) or OFF (low). Use this to control relays, lights, appliances, or status LEDs.",
                         "inputSchema": {
