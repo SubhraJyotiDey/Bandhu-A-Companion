@@ -1,0 +1,28 @@
+[skill]
+name = "claw-eye"
+description = "Control the physical animatronic eye mechanism servos, expressions, and room lights via GPIO."
+version = "1.0.0"
+author = "Subhr"
+license = "MIT"
+category = "hardware"
+tags = ["servos", "gpio", "companion", "eyes"]
+
+[[tools]]
+name = "set_eye_mood"
+description = "Set the emotional mood of the mechanical eyes. Moods: neutral, happy, sad, angry, bored, excited, surprised."
+command = "/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute set_eye_mood mood={{mood}}"
+
+[[tools]]
+name = "trigger_expression"
+description = "Trigger a direct instant eye expression. Expressions: blink, wink_left, wink_right."
+command = "/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute trigger_expression expression={{expression}}"
+
+[[tools]]
+name = "toggle_gpio"
+description = "Toggle a Raspberry Pi GPIO pin ON or OFF. Pins: 17 (light), 27 (indicator). State: on, off."
+command = "/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute toggle_gpio pin={{pin}} state={{state}}"
+
+[[tools]]
+name = "set_alarm"
+description = "Schedule a daily alarm. Time format: HH:MM. Task format: 'say: <message>' or 'toggle_gpio: <pin>:<state>'."
+command = "/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute set_alarm id={{id}} time={{time}} task={{task}}"

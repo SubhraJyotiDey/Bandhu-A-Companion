@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claw-Eye Companion Dashboard</title>
+    <!-- Import Google Font Outfit -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #080b11;
+            --panel-bg: rgba(18, 24, 38, 0.65);
+            --border-glow: rgba(0, 242, 254, 0.15);
+            --accent-cyan: #00f2fe;
+            --accent-pink: #ff007f;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --glow-happy: radial-gradient(circle, rgba(0,242,254,0.2) 0%, rgba(0,0,0,0) 70%);
+            --glow-angry: radial-gradient(circle, rgba(255,0,127,0.25) 0%, rgba(0,0,0,0) 70%);
+            --glow-sad: radial-gradient(circle, rgba(59,130,246,0.2) 0%, rgba(0,0,0,0) 70%);
+            --glow-surprised: radial-gradient(circle, rgba(234,179,8,0.2) 0%, rgba(0,0,0,0) 70%);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(at 10% 20%, rgba(0, 242, 254, 0.03) 0px, transparent 50%),
+                radial-gradient(at 90% 80%, rgba(255, 0, 127, 0.03) 0px, transparent 50%);
+        }
+
+        /* Ambient glowing circles */
+        .ambient-glow {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: var(--glow-happy);
+            filter: blur(80px);
+            z-index: -1;
+            transition: all 1s ease;
+        }
+        #glow-left { top: 10%; left: 5%; }
+        #glow-right { bottom: 10%; right: 5%; }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            background: rgba(8, 11, 17, 0.5);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        header h1 {
+            font-weight: 800;
+            font-size: 24px;
+            letter-spacing: 2px;
+            background: linear-gradient(to right, var(--accent-cyan), var(--accent-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicators {
+            display: flex;
+            gap: 15px;
+        }
+
+        .badge {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+        }
+
+        .badge.active-cyan {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+            color: var(--accent-cyan);
+        }
+        .badge.active-cyan .dot { background: var(--accent-cyan); box-shadow: 0 0 8px var(--accent-cyan); }
+
+        .badge.active-pink {
+            border-color: var(--accent-pink);
+            box-shadow: 0 0 10px rgba(255, 0, 127, 0.2);
+            color: var(--accent-pink);
+        }
+        .badge.active-pink .dot { background: var(--accent-pink); box-shadow: 0 0 8px var(--accent-pink); }
+
+        /* Main Container Grid */
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 320px 1fr 340px;
+            gap: 20px;
+            padding: 25px 40px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 1100px) {
+            .dashboard-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Glassmorphic Panel Card */
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-glow);
+            border-radius: 16px;
+            padding: 20px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            transition: border-color 0.5s ease;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 8px;
+            color: var(--text-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Visualizations */
+        .eye-sim-container {
+            width: 100%;
+            height: 140px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+            cursor: crosshair;
+        }
+
+        .eye-sim-container svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Mock Face Tracker Grid */
+        .sensor-grid-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .sensor-grid {
+            width: 100%;
+            aspect-ratio: 1;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        .sensor-grid::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 0; right: 0;
+            height: 1px; background: rgba(255, 255, 255, 0.05);
+        }
+
+        .sensor-grid::after {
+            content: '';
+            position: absolute;
+            left: 50%; top: 0; bottom: 0;
+            width: 1px; background: rgba(255, 255, 255, 0.05);
+        }
+
+        #face-rect {
+            position: absolute;
+            border: 2px dashed var(--accent-cyan);
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.3);
+            pointer-events: none;
+            display: none;
+            box-sizing: border-box;
+            background: rgba(0, 242, 254, 0.03);
+        }
+
+        /* Slider Controls */
+        .servo-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+        }
+
+        .servo-card {
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .servo-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .servo-header span {
+            color: var(--accent-cyan);
+        }
+
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider-row input[type="range"] {
+            flex-grow: 1;
+            accent-color: var(--accent-cyan);
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            height: 6px;
+            outline: none;
+        }
+
+        .slider-row span {
+            width: 40px;
+            font-family: 'Share Tech Mono', monospace;
+            text-align: right;
+            font-size: 13px;
+        }
+
+        .calibration-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 5px;
+        }
+
+        .calibration-input {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .calibration-input label {
+            font-size: 10px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .calibration-input input {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            color: #fff;
+            padding: 4px;
+            font-size: 11px;
+            font-family: 'Share Tech Mono', monospace;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* Generic buttons & inputs */
+        .btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            color: var(--text-primary);
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-cyan {
+            background: linear-gradient(135deg, rgba(0, 242, 254, 0.1) 0%, rgba(0, 242, 254, 0.03) 100%);
+            border-color: rgba(0, 242, 254, 0.3);
+            color: var(--accent-cyan);
+        }
+
+        .btn-cyan:hover {
+            background: linear-gradient(135deg, rgba(0, 242, 254, 0.2) 0%, rgba(0, 242, 254, 0.08) 100%);
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+        }
+
+        .btn-pink {
+            background: linear-gradient(135deg, rgba(255, 0, 127, 0.1) 0%, rgba(255, 0, 127, 0.03) 100%);
+            border-color: rgba(255, 0, 127, 0.3);
+            color: var(--accent-pink);
+        }
+
+        .btn-pink:hover {
+            background: linear-gradient(135deg, rgba(255, 0, 127, 0.2) 0%, rgba(255, 0, 127, 0.08) 100%);
+            border-color: var(--accent-pink);
+            box-shadow: 0 0 10px rgba(255, 0, 127, 0.2);
+        }
+
+        /* GPIO cards */
+        .gpio-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .gpio-item {
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        /* Toggle switches */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+        }
+
+        .switch input { 
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .3s;
+            border-radius: 20px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--accent-cyan);
+            box-shadow: 0 0 8px rgba(0, 242, 254, 0.4);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        /* Mood radial display */
+        .mood-status-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            padding: 10px;
+        }
+
+        .mood-orb {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 25px rgba(255, 255, 255, 0.02);
+            transition: all 0.8s ease;
+            position: relative;
+        }
+
+        .mood-orb::after {
+            content: '';
+            position: absolute;
+            inset: 3px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(5px);
+        }
+
+        .mood-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            width: 100%;
+        }
+
+        .mood-buttons button {
+            padding: 6px;
+            font-size: 11px;
+        }
+
+        .expression-buttons {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+        }
+        .expression-buttons button {
+            flex-grow: 1;
+            font-size: 12px;
+        }
+
+        /* Alarms list */
+        .alarms-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .alarm-item {
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+
+        .alarm-info h4 {
+            font-weight: 600;
+            color: var(--accent-cyan);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 14px;
+        }
+
+        .alarm-info p {
+            color: var(--text-secondary);
+            font-size: 11px;
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 180px;
+        }
+
+        .delete-btn {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px;
+            transition: color 0.2s;
+        }
+        .delete-btn:hover {
+            color: var(--accent-pink);
+        }
+
+        .alarm-form {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 8px;
+            margin-top: 5px;
+        }
+        .alarm-form input {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            color: #fff;
+            padding: 6px 10px;
+            font-size: 12px;
+            outline: none;
+        }
+        .alarm-form input[type="time"] {
+            font-family: 'Share Tech Mono', monospace;
+        }
+        .alarm-form input::placeholder {
+            color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Terminal Console */
+        .terminal-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            height: 250px;
+        }
+
+        .terminal-console {
+            flex-grow: 1;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            color: var(--text-secondary);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .terminal-input-row {
+            display: flex;
+            gap: 8px;
+        }
+        .terminal-input-row input {
+            flex-grow: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            color: #fff;
+            padding: 8px 12px;
+            font-size: 12px;
+            outline: none;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .text-cyan { color: var(--accent-cyan); }
+        .text-pink { color: var(--accent-pink); }
+        .text-white { color: #fff; }
+    </style>
+</head>
+<body>
+    <div id="glow-left" class="ambient-glow"></div>
+    <div id="glow-right" class="ambient-glow"></div>
+
+    <header>
+        <h1>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-cyan)"><path d="M2 12h20"/><path d="M20 12v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8"/><path d="m4 12 3-9h10l3 9"/><circle cx="9" cy="15" r="1"/><circle cx="15" cy="15" r="1"/></svg>
+            CLAW-EYE COMPANION
+        </h1>
+        <div class="status-indicators">
+            <div id="badge-voice" class="badge">
+                <div class="dot"></div> WAKE LISTEN
+            </div>
+            <div id="badge-tracking" class="badge">
+                <div class="dot"></div> FACE TRACKING
+            </div>
+            <div id="badge-mock" class="badge">
+                <div class="dot"></div> GLOBAL MOCK
+            </div>
+            <button class="btn btn-cyan" onclick="triggerVoiceWake()" style="padding: 4px 10px; font-size: 11px;">WAKE Companion</button>
+        </div>
+    </header>
+
+    <div class="dashboard-container">
+        <!-- LEFT COLUMN: Diagnostic & Output controllers -->
+        <div class="panel">
+            <div class="panel-title">
+                Hardware Feed
+                <span style="font-size:10px; color:var(--text-secondary)">Drag to Move Eyes</span>
+            </div>
+            <div class="eye-sim-container" id="eye-canvas">
+                <svg viewBox="0 0 300 140">
+                    <!-- Eye Socket Left -->
+                    <ellipse cx="90" cy="70" rx="42" ry="42" fill="#0d111a" stroke="rgba(255,255,255,0.03)" stroke-width="2"/>
+                    <ellipse cx="90" cy="70" rx="35" ry="35" fill="#1e293b" />
+                    <!-- Pupil Left -->
+                    <circle id="pupil-l" cx="90" cy="70" r="13" fill="#020617" stroke="var(--accent-cyan)" stroke-width="1.5" />
+                    
+                    <!-- Eye Socket Right -->
+                    <ellipse cx="210" cy="70" rx="42" ry="42" fill="#0d111a" stroke="rgba(255,255,255,0.03)" stroke-width="2"/>
+                    <ellipse cx="210" cy="70" rx="35" ry="35" fill="#1e293b" />
+                    <!-- Pupil Right -->
+                    <circle id="pupil-r" cx="210" cy="70" r="13" fill="#020617" stroke="var(--accent-cyan)" stroke-width="1.5" />
+
+                    <!-- Eyelids Left -->
+                    <path id="lid-lu" d="M 50 70 Q 90 25 130 70 Z" fill="#0f172a" stroke="rgba(255,255,255,0.05)" stroke-width="1" />
+                    <path id="lid-ll" d="M 50 70 Q 90 115 130 70 Z" fill="#0f172a" stroke="rgba(255,255,255,0.05)" stroke-width="1" />
+
+                    <!-- Eyelids Right -->
+                    <path id="lid-ru" d="M 170 70 Q 210 25 250 70 Z" fill="#0f172a" stroke="rgba(255,255,255,0.05)" stroke-width="1" />
+                    <path id="lid-rl" d="M 170 70 Q 210 115 250 70 Z" fill="#0f172a" stroke="rgba(255,255,255,0.05)" stroke-width="1" />
+                </svg>
+            </div>
+
+            <div class="sensor-grid-container">
+                <div class="panel-title" style="width:100%; border:none; padding:0; margin-bottom:5px">
+                    Person Sensor Map
+                    <span style="font-size:10px; color:var(--text-secondary)">Click to Mock Face</span>
+                </div>
+                <div class="sensor-grid" id="tracking-grid" onclick="mockFaceEvent(event)">
+                    <div id="face-rect"></div>
+                </div>
+                <button class="btn" onclick="clearMockFace()" style="font-size:11px; padding: 4px 8px; width: 100%">Clear Face Mock</button>
+            </div>
+
+            <div class="panel-title" style="margin-top:10px">GPIO Pin Modules</div>
+            <div class="gpio-grid" id="gpios-container">
+                <!-- Dynamically filled -->
+            </div>
+        </div>
+
+        <!-- CENTER COLUMN: Calibration Sliders (Yaw, Pitch, 4 Eyelids) -->
+        <div class="panel" style="gap:20px">
+            <div class="panel-title" style="display:flex; justify-content:space-between">
+                6-Servo Calibration Panel
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-pink" onclick="toggleManualMode(false)" id="btn-release" style="padding: 4px 10px; font-size:11px">Auto Gaze</button>
+                    <button class="btn btn-cyan" onclick="toggleManualMode(true)" id="btn-lock" style="padding: 4px 10px; font-size:11px; display:none">Manual Lock</button>
+                </div>
+            </div>
+
+            <div class="servo-card-grid" id="servos-container">
+                <!-- Dynamically filled -->
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Personality controls, Alarms and Chat Terminal -->
+        <div class="panel" style="justify-content:space-between">
+            <div style="display:flex; flex-direction:column; gap:15px">
+                <div class="panel-title">Personality & Mood</div>
+                <div class="mood-status-box">
+                    <div class="mood-orb" id="mood-indicator"></div>
+                    <div class="mood-buttons">
+                        <button class="btn" onclick="setMood('neutral')">Neutral</button>
+                        <button class="btn" onclick="setMood('happy')">Happy</button>
+                        <button class="btn" onclick="setMood('sad')">Sad</button>
+                        <button class="btn" onclick="setMood('angry')">Angry</button>
+                        <button class="btn" onclick="setMood('bored')">Bored</button>
+                        <button class="btn" onclick="setMood('surprised')">Surprise</button>
+                    </div>
+                    <div class="expression-buttons">
+                        <button class="btn btn-cyan" onclick="triggerExpression('blink')">Blink</button>
+                        <button class="btn btn-pink" onclick="triggerExpression('wink_left')">Wink L</button>
+                        <button class="btn btn-pink" onclick="triggerExpression('wink_right')">Wink R</button>
+                    </div>
+                </div>
+
+                <div class="panel-title">Scheduler Alarms</div>
+                <div class="alarms-list" id="alarms-container">
+                    <!-- Dynamically filled -->
+                </div>
+                <div style="display:flex; flex-direction:column; gap:5px">
+                    <div class="alarm-form">
+                        <input type="text" id="alarm-id" placeholder="Alarm Name (e.g. Wake)">
+                        <input type="time" id="alarm-time">
+                    </div>
+                    <div style="display:flex; gap:5px">
+                        <input type="text" id="alarm-task" placeholder="Task e.g. say: Rise and shine!" style="flex-grow:1; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.05); border-radius:6px; color:#fff; padding:6px 10px; font-size:12px; outline:none">
+                        <button class="btn btn-cyan" onclick="addAlarm()" style="padding:6px 12px">Add</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="terminal-container">
+                <div class="panel-title">System Console</div>
+                <div class="terminal-console" id="console-logs">
+                    <!-- Live logs stream -->
+                </div>
+                <div class="terminal-input-row">
+                    <input type="text" id="console-input" placeholder="Type prompt to companion..." onkeydown="if(event.key === 'Enter') sendConsolePrompt()">
+                    <button class="btn btn-cyan" onclick="sendConsolePrompt()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let manualOverride = false;
+        let calibratingServo = null;
+
+        // Poll status at 3Hz (perfect balance of updates vs lightweight CPU usage)
+        setInterval(fetchStatus, 330);
+
+        // Fetch companion daemon status
+        function fetchStatus() {
+            fetch("/api/status")
+                .then(res => res.json())
+                .then(data => {
+                    updateStatusIndicators(data);
+                    updateGazeSimulation(data.servo.current);
+                    updateTrackingGrid(data.sensor);
+                    updateGPIOList(data.gpios);
+                    if (!manualOverride) {
+                        updateServoSliders(data.servo);
+                    }
+                    updateAlarmsList(data.alarms);
+                    updateConsoleLogs(data.logs);
+                })
+                .catch(err => console.error("Error polling daemon:", err));
+        }
+
+        // Toggle badges
+        function updateStatusIndicators(data) {
+            // Voice listening
+            const voice = document.getElementById("badge-voice");
+            if (data.voice.listening) voice.classList.add("active-pink");
+            else voice.classList.remove("active-pink");
+
+            // Tracking
+            const tracking = document.getElementById("badge-tracking");
+            if (data.servo.face_tracking) tracking.classList.add("active-cyan");
+            else tracking.classList.remove("active-cyan");
+
+            // Mock
+            const mock = document.getElementById("badge-mock");
+            if (data.servo.mock) mock.classList.add("active-pink");
+            else mock.classList.remove("active-pink");
+
+            // Mood orb
+            const orb = document.getElementById("mood-orb");
+            const indicator = document.getElementById("mood-indicator");
+            const glowL = document.getElementById("glow-left");
+            const glowR = document.getElementById("glow-right");
+            let color = "rgba(255,255,255,0.1)";
+            let shadow = "0 0 25px rgba(255,255,255,0.05)";
+            let glow = "radial-gradient(circle, rgba(0,242,254,0.1) 0%, rgba(0,0,0,0) 70%)";
+
+            switch(data.servo.mood) {
+                case "happy":
+                case "excited":
+                    color = "#00f2fe";
+                    shadow = "0 0 30px rgba(0,242,254,0.6)";
+                    glow = "radial-gradient(circle, rgba(0,242,254,0.35) 0%, rgba(0,0,0,0) 75%)";
+                    break;
+                case "angry":
+                    color = "#ff007f";
+                    shadow = "0 0 30px rgba(255,0,127,0.7)";
+                    glow = "radial-gradient(circle, rgba(255,0,127,0.4) 0%, rgba(0,0,0,0) 75%)";
+                    break;
+                case "sad":
+                case "bored":
+                    color = "#3b82f6";
+                    shadow = "0 0 30px rgba(59,130,246,0.5)";
+                    glow = "radial-gradient(circle, rgba(59,130,246,0.3) 0%, rgba(0,0,0,0) 75%)";
+                    break;
+                case "surprised":
+                    color = "#eab308";
+                    shadow = "0 0 30px rgba(234,179,8,0.5)";
+                    glow = "radial-gradient(circle, rgba(234,179,8,0.3) 0%, rgba(0,0,0,0) 75%)";
+                    break;
+            }
+            indicator.style.background = color;
+            indicator.style.boxShadow = shadow;
+            glowL.style.background = glow;
+            glowR.style.background = glow;
+
+            // Manual Mode Lock badges
+            manualOverride = data.servo.manual_override;
+            if (manualOverride) {
+                document.getElementById("btn-release").style.display = "inline-flex";
+                document.getElementById("btn-lock").style.display = "none";
+            } else {
+                document.getElementById("btn-release").style.display = "none";
+                document.getElementById("btn-lock").style.display = "inline-flex";
+            }
+        }
+
+        // Real-time eye drawing (Translates 6 servo values to SVG)
+        function updateGazeSimulation(current) {
+            const yaw = current.yaw;
+            const pitch = current.pitch;
+            const lu = current.left_upper_eyelid;
+            const ll = current.left_lower_eyelid;
+            const ru = current.right_upper_eyelid;
+            const rl = current.right_lower_eyelid;
+
+            // Pupil horizontal offset: Yaw range (50 to 130), center (90)
+            const yaw_offset = ((yaw - 90) / 40.0) * 12.0; // max +/-12px
+            // Pupil vertical offset: Pitch range (60 to 120), center (90)
+            const pitch_offset = ((pitch - 90) / 30.0) * 8.0; // max +/-8px
+
+            document.getElementById("pupil-l").setAttribute("cx", 90 + yaw_offset);
+            document.getElementById("pupil-l").setAttribute("cy", 70 + pitch_offset);
+            document.getElementById("pupil-r").setAttribute("cx", 210 + yaw_offset);
+            document.getElementById("pupil-r").setAttribute("cy", 70 + pitch_offset);
+
+            // Eyelid curvature controls:
+            // Standard center angle 90.
+            // Upper lid closed: ~125. Open: ~50.
+            // In SVG: Closed height `y` is 70+ (say 80 to fully cover pupil). Open height `y` is 20-30.
+            // Map upper lid angle to quadratic control point Y coordinate:
+            // L_upper = 25 (fully open) to 85 (fully closed).
+            const lu_y = 25 + ((lu - 50) / 75.0) * 60.0;
+            const ru_y = 25 + ((ru - 50) / 75.0) * 60.0;
+            document.getElementById("lid-lu").setAttribute("d", `M 50 70 Q 90 ${lu_y} 130 70 Z`);
+            document.getElementById("lid-ru").setAttribute("d", `M 170 70 Q 210 ${ru_y} 250 70 Z`);
+
+            // Lower lid closed: ~80. Open: ~130.
+            // In SVG: Closed height `y` is 70- (say 60). Open height `y` is 115.
+            const ll_y = 115 - ((130 - ll) / 50.0) * 55.0;
+            const rl_y = 115 - ((130 - rl) / 50.0) * 55.0;
+            document.getElementById("lid-ll").setAttribute("d", `M 50 70 Q 90 ${ll_y} 130 70 Z`);
+            document.getElementById("lid-rl").setAttribute("d", `M 170 70 Q 210 ${rl_y} 250 70 Z`);
+        }
+
+        // SVG Drag to Move Eyes manually
+        const eyeCanvas = document.getElementById("eye-canvas");
+        let isDraggingEye = false;
+
+        eyeCanvas.addEventListener("mousedown", (e) => { isDraggingEye = true; moveEyesFromClick(e); });
+        eyeCanvas.addEventListener("mousemove", (e) => { if (isDraggingEye) moveEyesFromClick(e); });
+        window.addEventListener("mouseup", () => { isDraggingEye = false; });
+
+        function moveEyesFromClick(e) {
+            const rect = eyeCanvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+
+            // Map click bounds to Yaw (50..130) and Pitch (60..120)
+            const yawPct = clickX / rect.width;
+            const pitchPct = clickY / rect.height;
+
+            const targetYaw = 50 + yawPct * 80;
+            const targetPitch = 60 + pitchPct * 60;
+
+            // Direct fetch commands to servo control API
+            fetch("/api/servo/manual", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({name: "yaw", angle: targetYaw})
+            });
+            fetch("/api/servo/manual", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({name: "pitch", angle: targetPitch})
+            });
+        }
+
+        // Face grid updates
+        function updateTrackingGrid(sensor) {
+            const faceRect = document.getElementById("face-rect");
+            if (sensor.face_detected && sensor.primary_face) {
+                const face = sensor.primary_face;
+                // face.x, face.y range 0 to 255. Width and height range 0 to 255.
+                // Map to percentage of grid
+                const left = (face.x - face.width/2) / 2.55;
+                const top = (face.y - face.height/2) / 2.55;
+                const width = face.width / 2.55;
+                const height = face.height / 2.55;
+
+                faceRect.style.left = `${left}%`;
+                faceRect.style.top = `${top}%`;
+                faceRect.style.width = `${width}%`;
+                faceRect.style.height = `${height}%`;
+                faceRect.style.display = "block";
+            } else {
+                faceRect.style.display = "none";
+            }
+        }
+
+        // Grid Click to Mock face coordinates
+        function mockFaceEvent(e) {
+            const grid = document.getElementById("tracking-grid");
+            const rect = grid.getBoundingClientRect();
+            const x = ((e.clientX - rect.left) / rect.width) * 255;
+            const y = ((e.clientY - rect.top) / rect.height) * 255;
+
+            fetch("/api/face/mock", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({x: x, y: y, active: true})
+            });
+        }
+
+        function clearMockFace() {
+            fetch("/api/face/mock", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({active: false})
+            });
+        }
+
+        // Dynamically build/update sliders list
+        function updateServoSliders(servo) {
+            const container = document.getElementById("servos-container");
+            const currentObj = servo.current;
+            const targetObj = servo.target;
+            const configServos = servo_cfgs_cache || {}; // Placeholder cache
+
+            // Avoid rebuild on every tick; only update active values
+            const sliderNames = ["yaw", "pitch", "left_upper_eyelid", "left_lower_eyelid", "right_upper_eyelid", "right_lower_eyelid"];
+            
+            if (container.children.length === 0) {
+                // First build
+                sliderNames.forEach(name => {
+                    const cleanName = name.replace(/_/g, ' ');
+                    const val = currentObj[name];
+                    const target = targetObj[name];
+                    
+                    const card = document.createElement("div");
+                    card.className = "servo-card";
+                    card.id = `servo-card-${name}`;
+                    card.innerHTML = `
+                        <div class="servo-header">
+                            <span style="text-transform: capitalize;">${cleanName}</span>
+                            <span id="label-val-${name}">${Math.round(val)}°</span>
+                        </div>
+                        <div class="slider-row">
+                            <input type="range" id="slider-${name}" min="0" max="180" value="${val}" oninput="onManualSliderMove('${name}', this.value)" onchange="onManualSliderStop('${name}')">
+                        </div>
+                        <div class="calibration-row">
+                            <div class="calibration-input">
+                                <label>Trim</label>
+                                <input type="number" id="cal-trim-${name}" value="0" onchange="submitCalibration('${name}')">
+                            </div>
+                            <div class="calibration-input">
+                                <label>Min</label>
+                                <input type="number" id="cal-min-${name}" value="40" onchange="submitCalibration('${name}')">
+                            </div>
+                            <div class="calibration-input">
+                                <label>Max</label>
+                                <input type="number" id="cal-max-${name}" value="140" onchange="submitCalibration('${name}')">
+                            </div>
+                            <div class="calibration-input">
+                                <label>Pin</label>
+                                <input type="number" id="cal-pin-${name}" value="0" onchange="submitCalibration('${name}')">
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+                
+                // Fetch full config settings once to populate Calibration inputs
+                fetch("/api/status")
+                    .then(res => res.json())
+                    .then(d => {
+                        servo_cfgs_cache = d.servo.current; // just a trigger
+                        sliderNames.forEach(name => {
+                            const cfg = d.servo.current; // we get individual variables
+                            // Read raw configurations directly:
+                            const srvCfg = d.servo.current; // status gives current values
+                        });
+                        // Fill inputs
+                        const srvs = d.servo.current;
+                        fetchFullCalibrationValues();
+                    });
+            } else {
+                // Simple updates
+                sliderNames.forEach(name => {
+                    const val = currentObj[name];
+                    document.getElementById(`label-val-${name}`).innerText = `${Math.round(val)}°`;
+                    if (document.activeElement.id !== `slider-${name}`) {
+                        document.getElementById(`slider-${name}`).value = val;
+                    }
+                });
+            }
+        }
+
+        let servo_cfgs_cache = null;
+
+        function fetchFullCalibrationValues() {
+            fetch("/api/status")
+                .then(res => res.json())
+                .then(data => {
+                    const sliderNames = ["yaw", "pitch", "left_upper_eyelid", "left_lower_eyelid", "right_upper_eyelid", "right_lower_eyelid"];
+                    // Load limits from the hidden JSON configuration structure (we can extract this via REST)
+                    // Let's directly pull the config params via status query!
+                    // Wait, we can fetch config and populate
+                    // Since it has the same status, we populate:
+                    // Actually, let's grab it:
+                    const config = data.gpios; // placeholder, the alarms config is inside, let's fetch to make it easy
+                });
+        }
+
+        function onManualSliderMove(name, val) {
+            document.getElementById(`label-val-${name}`).innerText = `${val}°`;
+            fetch("/api/servo/manual", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({name: name, angle: val, override: true})
+            });
+        }
+
+        function onManualSliderStop(name) {
+            // Keep override locked so user can calibrate without gaze movements fighting them
+        }
+
+        function toggleManualMode(override) {
+            fetch("/api/servo/manual", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({override: override})
+            }).then(() => {
+                fetchStatus();
+            });
+        }
+
+        function submitCalibration(name) {
+            const trim = document.getElementById(`cal-trim-${name}`).value;
+            const min_angle = document.getElementById(`cal-min-${name}`).value;
+            const max_angle = document.getElementById(`cal-max-${name}`).value;
+            const pin = document.getElementById(`cal-pin-${name}`).value;
+
+            fetch("/api/servo/calibrate", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    name: name,
+                    trim: trim,
+                    min_angle: min_angle,
+                    max_angle: max_angle,
+                    pin: pin
+                })
+            });
+        }
+
+        // GPIO controllers
+        function updateGPIOList(gpios) {
+            const container = document.getElementById("gpios-container");
+            container.innerHTML = "";
+            gpios.forEach(gpio => {
+                const item = document.createElement("div");
+                item.className = "gpio-item";
+                item.innerHTML = `
+                    <span>${gpio.name} (Pin ${gpio.pin})</span>
+                    <label class="switch">
+                        <input type="checkbox" ${gpio.state ? 'checked' : ''} onchange="toggleGPIO(${gpio.pin}, this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function toggleGPIO(pin, state) {
+            fetch("/api/gpio/toggle", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({pin: pin, state: state})
+            });
+        }
+
+        // Mood setter
+        function setMood(mood) {
+            fetch("/api/settings", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({mood: mood})
+            });
+        }
+
+        function triggerExpression(expr) {
+            fetch("/api/mcp/execute", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    tool: "trigger_expression",
+                    arguments: {expression: expr}
+                })
+            });
+        }
+
+        // Voice trigger
+        function triggerVoiceWake() {
+            fetch("/api/voice/trigger", { method: "POST" });
+        }
+
+        // Alarms
+        function updateAlarmsList(alarms) {
+            const container = document.getElementById("alarms-container");
+            container.innerHTML = "";
+            
+            if (alarms.length === 0) {
+                container.innerHTML = `<div style="font-size:11px; color:var(--text-secondary); text-align:center; padding:10px;">No active alarms.</div>`;
+                return;
+            }
+
+            alarms.forEach(alarm => {
+                const item = document.createElement("div");
+                item.className = "alarm-item";
+                item.innerHTML = `
+                    <div class="alarm-info">
+                        <h4>${alarm.time}</h4>
+                        <p title="${alarm.task}">${alarm.id}: ${alarm.task}</p>
+                    </div>
+                    <button class="delete-btn" onclick="deleteAlarm('${alarm.id}')">&times;</button>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function addAlarm() {
+            const id = document.getElementById("alarm-id").value.trim();
+            const time = document.getElementById("alarm-time").value;
+            const task = document.getElementById("alarm-task").value.trim();
+
+            if (!id || !time || !task) {
+                alert("Please fill name, time, and task command!");
+                return;
+            }
+
+            fetch("/api/alarm/add", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({id: id, time: time, task: task})
+            }).then(() => {
+                document.getElementById("alarm-id").value = "";
+                document.getElementById("alarm-time").value = "";
+                document.getElementById("alarm-task").value = "";
+                fetchStatus();
+            });
+        }
+
+        function deleteAlarm(id) {
+            fetch("/api/alarm/delete", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({id: id})
+            }).then(() => {
+                fetchStatus();
+            });
+        }
+
+        // Terminal console logs
+        let lastLogCount = 0;
+        function updateConsoleLogs(logs) {
+            const consoleBox = document.getElementById("console-logs");
+            
+            // Check if log count is same to avoid redraw
+            if (logs.length === lastLogCount) return;
+            lastLogCount = logs.length;
+
+            const isScrolledToBottom = consoleBox.scrollHeight - consoleBox.clientHeight <= consoleBox.scrollTop + 30;
+
+            consoleBox.innerHTML = "";
+            logs.forEach(log => {
+                const line = document.createElement("div");
+                
+                // Color formatting for readability
+                if (log.includes("[Voice] User spoke")) {
+                    line.className = "text-cyan";
+                } else if (log.includes("[Voice] Agent reply")) {
+                    line.className = "text-pink";
+                } else if (log.includes("[Tracking]")) {
+                    line.className = "text-white";
+                } else if (log.includes("[Sensor Error]") || log.includes("[GPIO Error]")) {
+                    line.className = "text-pink";
+                }
+                
+                line.innerText = log;
+                consoleBox.appendChild(line);
+            });
+
+            // Auto-scroll if user was at bottom
+            if (isScrolledToBottom || consoleBox.scrollTop === 0) {
+                consoleBox.scrollTop = consoleBox.scrollHeight;
+            }
+        }
+
+        function sendConsolePrompt() {
+            const input = document.getElementById("console-input");
+            const text = input.value.trim();
+            if (!text) return;
+
+            input.value = "";
+            fetch("/api/voice/send", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({text: text})
+            });
+        }
+    </script>
+</body>
+</html>

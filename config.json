@@ -1,0 +1,114 @@
+{
+  "mock": true,
+  "servo_mode": "pca9685",
+  "pca9685": {
+    "address": 64,
+    "bus": 1
+  },
+  "servos": {
+    "yaw": {
+      "pin": 0,
+      "min_angle": 50,
+      "max_angle": 130,
+      "center_angle": 90,
+      "trim": 0,
+      "speed_limit": 120,
+      "inverted": false
+    },
+    "pitch": {
+      "pin": 1,
+      "min_angle": 60,
+      "max_angle": 120,
+      "center_angle": 90,
+      "trim": 0,
+      "speed_limit": 120,
+      "inverted": false
+    },
+    "left_upper_eyelid": {
+      "pin": 2,
+      "min_angle": 40,
+      "max_angle": 140,
+      "center_angle": 90,
+      "trim": 0,
+      "speed_limit": 180,
+      "inverted": false
+    },
+    "left_lower_eyelid": {
+      "pin": 3,
+      "min_angle": 40,
+      "max_angle": 140,
+      "center_angle": 90,
+      "trim": 0,
+      "speed_limit": 180,
+      "inverted": false
+    },
+    "right_upper_eyelid": {
+      "pin": 4,
+      "min_angle": 40,
+      "max_angle": 140,
+      "center_angle": 90,
+      "trim": 0,
+      "speed_limit": 180,
+      "inverted": true
+    },
+    "right_lower_eyelid": {
+      "pin": 5,
+      "min_angle": 40,
+      "max_angle": 140,
+      "center_angle": 90,
+      "trim": 0,
+      "speed_limit": 180,
+      "inverted": true
+    }
+  },
+  "gpios": [
+    {
+      "pin": 17,
+      "name": "Room Light Relay",
+      "state": false
+    },
+    {
+      "pin": 27,
+      "name": "Companion Status LED",
+      "state": false
+    }
+  ],
+  "face_tracking": {
+    "enabled": true,
+    "invert_x": false,
+    "invert_y": false,
+    "i2c_bus": 1,
+    "sensor_address": 98
+  },
+  "voice": {
+    "wake_word": "jarvis",
+    "wake_sensitivity": 0.5,
+    "language": "en-US",
+    "speech_threshold": 0.8,
+    "tts_provider": "edge-tts"
+  },
+  "zeroclaw": {
+    "api_url": "http://127.0.0.1:42617/api/chat",
+    "api_token": "companion_token_12345"
+  },
+  "alarms": [
+    {
+      "id": "morning_alarm",
+      "time": "08:00",
+      "recurring": true,
+      "enabled": true,
+      "task": "say: Good morning, friend! Time to wake up and start a productive day.",
+      "days": [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday"
+      ]
+    }
+  ],
+  "personality": {
+    "extroversion": 0.7,
+    "mood": "neutral"
+  }
+}

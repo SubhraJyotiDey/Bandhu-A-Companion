@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.system_generated/
+*.log
+venv/
+.idea/
+.vscode/
+config.json.local
