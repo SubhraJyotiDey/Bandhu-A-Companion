@@ -443,7 +443,7 @@
 
         .mood-buttons {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 8px;
             width: 100%;
         }
@@ -673,12 +673,14 @@
                 <div class="panel-title">Personality & Mood</div>
                 <div class="mood-status-box">
                     <div class="mood-orb" id="mood-indicator"></div>
+                    <span id="mood-label" style="font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:1px; color:var(--text-secondary); transition: color 0.5s ease">NEUTRAL</span>
                     <div class="mood-buttons">
                         <button class="btn" onclick="setMood('neutral')">Neutral</button>
                         <button class="btn" onclick="setMood('happy')">Happy</button>
                         <button class="btn" onclick="setMood('sad')">Sad</button>
                         <button class="btn" onclick="setMood('angry')">Angry</button>
                         <button class="btn" onclick="setMood('bored')">Bored</button>
+                        <button class="btn" onclick="setMood('excited')">Excited</button>
                         <button class="btn" onclick="setMood('surprised')">Surprise</button>
                     </div>
                     <div class="expression-buttons">
@@ -794,6 +796,12 @@
             }
             indicator.style.background = color;
             indicator.style.boxShadow = shadow;
+            // Update mood label text
+            const moodLabel = document.getElementById("mood-label");
+            if (moodLabel) {
+                moodLabel.innerText = (data.servo.mood || "neutral").toUpperCase();
+                moodLabel.style.color = color;
+            }
             glowL.style.background = glow;
             glowR.style.background = glow;
 
@@ -818,30 +826,30 @@
             const rl = current.right_lower_eyelid;
 
             // Pupil horizontal offset: Yaw range (50 to 130), center (90)
-            const yaw_offset = ((yaw - 90) / 40.0) * 12.0; // max +/-12px
+            const yaw_norm = (yaw - 90) / 40.0; // -1 to +1
+            const yaw_offset = yaw_norm * 18.0; // max +/-18px in SVG space
             // Pupil vertical offset: Pitch range (60 to 120), center (90)
-            const pitch_offset = ((pitch - 90) / 30.0) * 8.0; // max +/-8px
+            const pitch_norm = (pitch - 90) / 30.0; // -1 to +1
+            const pitch_offset = pitch_norm * 12.0; // max +/-12px
 
             document.getElementById("pupil-l").setAttribute("cx", 90 + yaw_offset);
             document.getElementById("pupil-l").setAttribute("cy", 70 + pitch_offset);
             document.getElementById("pupil-r").setAttribute("cx", 210 + yaw_offset);
             document.getElementById("pupil-r").setAttribute("cy", 70 + pitch_offset);
 
-            // Eyelid curvature controls:
-            // Standard center angle 90.
-            // Upper lid closed: ~125. Open: ~50.
-            // In SVG: Closed height `y` is 70+ (say 80 to fully cover pupil). Open height `y` is 20-30.
-            // Map upper lid angle to quadratic control point Y coordinate:
-            // L_upper = 25 (fully open) to 85 (fully closed).
-            const lu_y = 25 + ((lu - 50) / 75.0) * 60.0;
-            const ru_y = 25 + ((ru - 50) / 75.0) * 60.0;
+            // Eyelid mapping: servo angle range 40-140, center 90
+            // Upper lid: 40 = fully open (SVG y=20), 140 = fully closed (SVG y=80)
+            // Lower lid: 140 = fully open (SVG y=120), 40 = fully closed (SVG y=60)
+            const mapUpper = (angle) => 20 + ((angle - 40) / 100.0) * 60.0;
+            const mapLower = (angle) => 120 - ((140 - angle) / 100.0) * 60.0;
+
+            const lu_y = Math.max(15, Math.min(85, mapUpper(lu)));
+            const ru_y = Math.max(15, Math.min(85, mapUpper(ru)));
+            const ll_y = Math.max(55, Math.min(125, mapLower(ll)));
+            const rl_y = Math.max(55, Math.min(125, mapLower(rl)));
+
             document.getElementById("lid-lu").setAttribute("d", `M 50 70 Q 90 ${lu_y} 130 70 Z`);
             document.getElementById("lid-ru").setAttribute("d", `M 170 70 Q 210 ${ru_y} 250 70 Z`);
-
-            // Lower lid closed: ~80. Open: ~130.
-            // In SVG: Closed height `y` is 70- (say 60). Open height `y` is 115.
-            const ll_y = 115 - ((130 - ll) / 50.0) * 55.0;
-            const rl_y = 115 - ((130 - rl) / 50.0) * 55.0;
             document.getElementById("lid-ll").setAttribute("d", `M 50 70 Q 90 ${ll_y} 130 70 Z`);
             document.getElementById("lid-rl").setAttribute("d", `M 170 70 Q 210 ${rl_y} 250 70 Z`);
         }
@@ -1002,16 +1010,22 @@
         let servo_cfgs_cache = null;
 
         function fetchFullCalibrationValues() {
-            fetch("/api/status")
+            fetch("/api/config")
                 .then(res => res.json())
                 .then(data => {
+                    const servos = data.servos || {};
                     const sliderNames = ["yaw", "pitch", "left_upper_eyelid", "left_lower_eyelid", "right_upper_eyelid", "right_lower_eyelid"];
-                    // Load limits from the hidden JSON configuration structure (we can extract this via REST)
-                    // Let's directly pull the config params via status query!
-                    // Wait, we can fetch config and populate
-                    // Since it has the same status, we populate:
-                    // Actually, let's grab it:
-                    const config = data.gpios; // placeholder, the alarms config is inside, let's fetch to make it easy
+                    sliderNames.forEach(name => {
+                        const cfg = servos[name] || {};
+                        const trimEl = document.getElementById(`cal-trim-${name}`);
+                        const minEl = document.getElementById(`cal-min-${name}`);
+                        const maxEl = document.getElementById(`cal-max-${name}`);
+                        const pinEl = document.getElementById(`cal-pin-${name}`);
+                        if (trimEl) trimEl.value = cfg.trim !== undefined ? cfg.trim : 0;
+                        if (minEl) minEl.value = cfg.min_angle !== undefined ? cfg.min_angle : 40;
+                        if (maxEl) maxEl.value = cfg.max_angle !== undefined ? cfg.max_angle : 140;
+                        if (pinEl) pinEl.value = cfg.pin !== undefined ? cfg.pin : 0;
+                    });
                 });
         }
 
@@ -1029,11 +1043,16 @@
         }
 
         function toggleManualMode(override) {
+            manualOverride = override;
             fetch("/api/servo/manual", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
                 body: JSON.stringify({override: override})
             }).then(() => {
+                if (!override) {
+                    // Reset manual flag immediately so auto-gaze resumes
+                    manualOverride = false;
+                }
                 fetchStatus();
             });
         }

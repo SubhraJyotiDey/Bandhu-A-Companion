@@ -22,7 +22,7 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
     def get_status():
         """Aggregates all subsystem states for real-time frontend visualization."""
         status = {
-            "servo": daemon.servos.get_state(),
+            "servo": {**daemon.servos.get_state(), "blink_active": daemon.servos.blink_active, "blink_side": daemon.servos.blink_side},
             "sensor": {
                 "face_detected": daemon.sensor.face_detected,
                 "primary_face": daemon.sensor.get_primary_face(),
@@ -41,6 +41,17 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
             "logs": list(daemon.logs)
         }
         return jsonify(status)
+
+    @app.route("/api/config", methods=["GET"])
+    def get_config():
+        """Returns servo configuration for dashboard calibration fields."""
+        config = daemon.config_manager.config
+        return jsonify({
+            "servos": config.get("servos", {}),
+            "face_tracking": config.get("face_tracking", {}),
+            "personality": config.get("personality", {}),
+            "mock": config.get("mock", True)
+        })
 
     @app.route("/api/settings", methods=["POST"])
     def update_settings():

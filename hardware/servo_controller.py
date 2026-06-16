@@ -35,6 +35,7 @@ class ServoController:
         
         # Mood defaults
         self.mood = self.config.get("personality", {}).get("mood", "neutral")
+        self._prev_mood = self.mood  # Track mood transitions for flutter effect
         self.extroversion = self.config.get("personality", {}).get("extroversion", 0.7)
         
         # Flags
@@ -44,6 +45,17 @@ class ServoController:
         self.blink_progress = 0.0 # 0.0 (open) to 1.0 (fully closed)
         self.manual_override = False # If true, manual controls from portal override everything
         self.face_tracking_active = False
+        
+        # Eyelid flutter state (triggered on mood transitions)
+        self._flutter_active = False
+        self._flutter_progress = 0.0
+        
+        # Curiosity perk-up state
+        self._curiosity_active = False
+        self._curiosity_phase = 0  # 0=snap, 1=hold, 2=return
+        self._curiosity_timer = 0.0
+        self._curiosity_target_yaw = 90.0
+        self._curiosity_target_pitch = 90.0
         
         # Hardware interfaces
         self.bus = None
@@ -223,12 +235,15 @@ class ServoController:
             max_lim = cfg.get("max_angle", 180)
             self.target_pos[name] = max(min_lim, min(max_lim, float(angle)))
 
+    # ------------------------------------------------------------------
+    # BLINK & WINK SYSTEM
+    # ------------------------------------------------------------------
+
     def trigger_blink(self):
         """Triggers a coordinated blink sequence."""
         if not self.blink_active:
             self.blink_active = True
             self.blink_side = "both"
-            # Spawn a thread to handle the blink timing so it doesn't block the loop
             threading.Thread(target=self._blink_sequence_thread, daemon=True).start()
 
     def _blink_sequence_thread(self):
@@ -240,7 +255,7 @@ class ServoController:
             elapsed = time.time() - start_time
             t = min(1.0, elapsed / close_duration)
             self.blink_progress = t * t
-            time.sleep(0.01)
+            time.sleep(0.008)
         self.blink_progress = 1.0
         
         # 2. Hold closed briefly (20ms)
@@ -253,9 +268,44 @@ class ServoController:
             elapsed = time.time() - start_time
             t = min(1.0, elapsed / open_duration)
             self.blink_progress = (1.0 - t) ** 3
-            time.sleep(0.01)
+            time.sleep(0.008)
             
         self.blink_progress = 0.0
+        self.blink_active = False
+
+    def trigger_double_blink(self):
+        """Triggers two rapid blinks in sequence, ~250ms apart (common human pattern)."""
+        if not self.blink_active:
+            self.blink_active = True
+            self.blink_side = "both"
+            threading.Thread(target=self._double_blink_thread, daemon=True).start()
+
+    def _double_blink_thread(self):
+        """Two quick blinks with a brief pause between them."""
+        for i in range(2):
+            # Close (50ms)
+            close_dur = 0.05
+            start = time.time()
+            while time.time() - start < close_dur:
+                t = min(1.0, (time.time() - start) / close_dur)
+                self.blink_progress = t * t
+                time.sleep(0.008)
+            self.blink_progress = 1.0
+            time.sleep(0.015)
+            
+            # Open (150ms)
+            open_dur = 0.15
+            start = time.time()
+            while time.time() - start < open_dur:
+                t = min(1.0, (time.time() - start) / open_dur)
+                self.blink_progress = (1.0 - t) ** 3
+                time.sleep(0.008)
+            self.blink_progress = 0.0
+            
+            # Pause between blinks (only after first)
+            if i == 0:
+                time.sleep(random.uniform(0.18, 0.30))
+        
         self.blink_active = False
 
     def trigger_wink(self, side="left"):
@@ -273,7 +323,7 @@ class ServoController:
             elapsed = time.time() - start_time
             t = min(1.0, elapsed / close_duration)
             self.blink_progress = t * t
-            time.sleep(0.01)
+            time.sleep(0.008)
         self.blink_progress = 1.0
         
         # 2. Hold closed briefly (40ms)
@@ -286,27 +336,55 @@ class ServoController:
             elapsed = time.time() - start_time
             t = min(1.0, elapsed / open_duration)
             self.blink_progress = (1.0 - t) ** 3
-            time.sleep(0.01)
+            time.sleep(0.008)
             
         self.blink_progress = 0.0
         self.blink_active = False
 
+    def _trigger_eyelid_flutter(self):
+        """Rapid 3-flutter sequence on mood transitions (3 partial blinks at ~40% closure)."""
+        if not self._flutter_active and not self.blink_active:
+            self._flutter_active = True
+            threading.Thread(target=self._flutter_thread, daemon=True).start()
+
+    def _flutter_thread(self):
+        """Three quick partial eye narrows over ~400ms."""
+        for i in range(3):
+            # Partial close to 40% (40ms)
+            close_dur = 0.04
+            start = time.time()
+            while time.time() - start < close_dur:
+                t = min(1.0, (time.time() - start) / close_dur)
+                self._flutter_progress = t * 0.4
+                time.sleep(0.008)
+            self._flutter_progress = 0.4
+            
+            # Open back (60ms)
+            open_dur = 0.06
+            start = time.time()
+            while time.time() - start < open_dur:
+                t = min(1.0, (time.time() - start) / open_dur)
+                self._flutter_progress = 0.4 * (1.0 - t)
+                time.sleep(0.008)
+            self._flutter_progress = 0.0
+            
+            # Brief gap between flutters
+            if i < 2:
+                time.sleep(0.03)
+        
+        self._flutter_active = False
+
+    # ------------------------------------------------------------------
+    # MOOD-DEPENDENT EYELID BASELINES
+    # ------------------------------------------------------------------
+
     def _get_eyelid_baselines(self):
-        """Returns the normal open/closed baseline limits based on the current mood."""
-        # Baseline limits represent the "Open" state.
-        # Format: (left_upper, left_lower, right_upper, right_lower)
-        # Standard center is 90. Eyelids close by moving toward each other:
-        # Upper eyelid moves DOWN (angle increases, say from 50 to 110)
-        # Lower eyelid moves UP (angle decreases, say from 130 to 95)
-        # For a standard Will Cogley mechanism:
-        # Upper lid fully open is ~60 deg, fully closed is ~120 deg.
-        # Lower lid fully open is ~120 deg, fully closed is ~80 deg.
-        
-        # Let's define default offsets relative to their center (90)
-        # Upper open is 60, Lower open is 120.
-        # Upper closed is 120, Lower closed is 80.
-        
-        # We start with neutral positions
+        """Returns the normal open baseline angles based on the current mood.
+        Format: (left_upper, left_lower, right_upper, right_lower)
+        Upper lid: lower angle = more open, higher angle = more closed
+        Lower lid: higher angle = more open, lower angle = more closed
+        """
+        # Neutral positions (eyes fully open and relaxed)
         lu_open, ll_open = 60.0, 120.0
         ru_open, rl_open = 60.0, 120.0
         
@@ -316,7 +394,7 @@ class ServoController:
             lu_open, ll_open = 75.0, 105.0
             ru_open, rl_open = 75.0, 105.0
         elif self.mood == "angry":
-            # Narrowed eyes: upper eyelids lower, lower lids raise
+            # Narrowed, intense eyes: upper eyelids lower, lower lids raise
             lu_open, ll_open = 95.0, 95.0
             ru_open, rl_open = 95.0, 95.0
         elif self.mood == "sad" or self.mood == "bored":
@@ -328,19 +406,69 @@ class ServoController:
             lu_open, ll_open = 45.0, 135.0
             ru_open, rl_open = 45.0, 135.0
         elif self.mood == "excited":
-            # Slightly open
+            # Bright, alert, slightly wider than normal
             lu_open, ll_open = 50.0, 130.0
             ru_open, rl_open = 50.0, 130.0
             
         return lu_open, ll_open, ru_open, rl_open
 
+    def _get_blink_interval(self):
+        """Returns a random blink interval that varies by mood (in seconds).
+        Anxious/excited moods blink more frequently; calm/bored moods blink less.
+        """
+        if self.mood in ["excited", "surprised", "angry"]:
+            return random.uniform(2.5, 5.0)
+        elif self.mood in ["sad", "bored"]:
+            return random.uniform(6.0, 14.0)
+        else:  # neutral, happy
+            return random.uniform(4.0, 8.0)
+
+    # ------------------------------------------------------------------
+    # MICRO-SACCADE GENERATOR
+    # ------------------------------------------------------------------
+
+    def _micro_saccade(self, t):
+        """Generates tiny involuntary eye jitter using summed sine waves at
+        incommensurate frequencies (pseudo-Perlin noise). Returns (yaw_offset, pitch_offset).
+        Amplitude is ±0.3° — imperceptible to observers but makes the eye feel alive.
+        """
+        # Three incommensurate frequencies for organic irregularity
+        yaw_noise = (
+            0.15 * math.sin(t * 2.31 + 0.7) +
+            0.10 * math.sin(t * 3.87 + 1.3) +
+            0.05 * math.sin(t * 7.13 + 2.1)
+        )
+        pitch_noise = (
+            0.12 * math.sin(t * 1.97 + 3.2) +
+            0.08 * math.sin(t * 4.53 + 0.5) +
+            0.05 * math.sin(t * 6.71 + 1.8)
+        )
+        return yaw_noise, pitch_noise
+
+    # ------------------------------------------------------------------
+    # BREATHING RHYTHM (slow sinusoidal eyelid oscillation)
+    # ------------------------------------------------------------------
+
+    def _breathing_offset(self, t):
+        """Returns a slow sinusoidal offset for upper eyelids simulating breathing.
+        Oscillation: ±1.5° at ~0.15Hz (one full cycle every ~6.7 seconds).
+        """
+        return 1.5 * math.sin(t * 0.15 * 2.0 * math.pi)
+
+    # ------------------------------------------------------------------
+    # MAIN CONTROL LOOP
+    # ------------------------------------------------------------------
+
     def _control_loop(self):
-        """Continuous background thread that smooths servo movements and handles features."""
+        """Continuous background thread that smooths servo movements and handles
+        all autonomous behaviors: drift gaze, micro-saccades, blinks, mood
+        expressions, curiosity, and breathing rhythm.
+        """
         last_time = time.time()
         drift_timer = time.time()
         
-        # Random automatic blinking timer
-        next_blink_time = time.time() + random.uniform(4.0, 10.0)
+        # Random automatic blinking timer (mood-dependent interval)
+        next_blink_time = time.time() + self._get_blink_interval()
         
         # Drift target variables for smooth looking around
         drift_yaw = 90.0
@@ -349,6 +477,10 @@ class ServoController:
         drift_start_pitch = 90.0
         drift_duration = 1.5
         drift_elapsed = 1.5
+        drift_type = "small"  # "small", "medium", "large"
+        
+        # Curiosity perk-up timer (fires when no face is present for a while)
+        next_curiosity_time = time.time() + random.uniform(15.0, 30.0)
         
         while self.is_running:
             now = time.time()
@@ -367,37 +499,124 @@ class ServoController:
             if sys.platform.startswith("win"):
                 self.mock = True
             
-            # Increment continuous run time for biological drift
+            # Increment continuous run time for biological oscillations
             self.run_time += dt
 
-            # ----------------------------------------------------
-            # 1. AUTONOMOUS DRIFT GAZE (Smooth drifts, NO SACCADES)
-            # ----------------------------------------------------
+            # ----------------------------------------------------------
+            # MOOD TRANSITION DETECTION (trigger eyelid flutter)
+            # ----------------------------------------------------------
+            if self.mood != self._prev_mood:
+                self._trigger_eyelid_flutter()
+                self._prev_mood = self.mood
+
+            # ----------------------------------------------------------
+            # 1. AUTONOMOUS ATTENTION SYSTEM (weighted gaze shifts)
+            # ----------------------------------------------------------
             if not self.manual_override and not self.face_tracking_active:
-                # If it's time to choose a new gaze location
-                if now > drift_timer:
+                
+                # --- Curiosity perk-up behavior (periodic alert snap) ---
+                if now > next_curiosity_time and not self._curiosity_active:
+                    self._curiosity_active = True
+                    self._curiosity_phase = 0
+                    self._curiosity_timer = now
+                    # Pick a random "attention" direction
+                    gaze_range = 25.0
+                    self._curiosity_target_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
+                    self._curiosity_target_pitch = 90.0 + random.uniform(-8.0, 5.0)
+                    next_curiosity_time = now + random.uniform(18.0, 40.0)
+                
+                if self._curiosity_active:
+                    elapsed_c = now - self._curiosity_timer
+                    if self._curiosity_phase == 0:
+                        # Phase 0: Quick snap to curiosity target (fast k, ~200ms)
+                        self.target_pos["yaw"] = self._curiosity_target_yaw
+                        self.target_pos["pitch"] = self._curiosity_target_pitch
+                        # Override speed for snap
+                        self.speed_k["yaw"] = 12.0
+                        self.speed_k["pitch"] = 12.0
+                        if elapsed_c > 0.25:
+                            self._curiosity_phase = 1
+                            self._curiosity_timer = now
+                            # Trigger a blink at the snap point (humans blink on attention shifts)
+                            self.trigger_blink()
+                    elif self._curiosity_phase == 1:
+                        # Phase 1: Hold and "inspect" (1.0-1.5s)
+                        # Restore normal speed
+                        self.speed_k["yaw"] = 5.0
+                        self.speed_k["pitch"] = 5.0
+                        if elapsed_c > random.uniform(1.0, 1.5):
+                            self._curiosity_phase = 2
+                            self._curiosity_timer = now
+                    elif self._curiosity_phase == 2:
+                        # Phase 2: Slow drift back toward center
+                        self.speed_k["yaw"] = 3.0
+                        self.speed_k["pitch"] = 3.0
+                        self.target_pos["yaw"] = 90.0 + random.uniform(-5.0, 5.0)
+                        self.target_pos["pitch"] = 90.0
+                        if elapsed_c > 1.5:
+                            self._curiosity_active = False
+                            self.speed_k["yaw"] = 5.0
+                            self.speed_k["pitch"] = 5.0
+                            # Reset drift timer so normal drift resumes
+                            drift_timer = now + random.uniform(1.0, 3.0)
+                            drift_elapsed = drift_duration  # Mark drift as complete
+                
+                elif now > drift_timer:
+                    # --- Weighted attention shift selection ---
                     drift_start_yaw = self.target_pos["yaw"]
                     drift_start_pitch = self.target_pos["pitch"]
                     
-                    # Choose a smooth new look angle (close to center for realism)
-                    # Extroverted personality will look around more frequently and wider
-                    gaze_range = 18.0 * self.extroversion
-                    drift_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
-                    drift_pitch = 90.0 + random.uniform(-gaze_range / 2.0, gaze_range / 3.0)
+                    roll = random.random()
+                    if roll < 0.60:
+                        # 60% — Micro-glance: small adjustment near current position
+                        drift_type = "small"
+                        drift_yaw = drift_start_yaw + random.uniform(-5.0, 5.0)
+                        drift_pitch = drift_start_pitch + random.uniform(-3.0, 3.0)
+                        drift_duration = random.uniform(0.6, 1.2)
+                    elif roll < 0.85:
+                        # 25% — Medium shift: purposeful look
+                        drift_type = "medium"
+                        gaze_range = 12.0 * self.extroversion
+                        drift_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
+                        drift_pitch = 90.0 + random.uniform(-gaze_range / 3.0, gaze_range / 4.0)
+                        drift_duration = random.uniform(1.0, 2.0)
+                    else:
+                        # 15% — Large attention shift: "what was that?"
+                        drift_type = "large"
+                        gaze_range = 22.0 * self.extroversion
+                        drift_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
+                        drift_pitch = 90.0 + random.uniform(-6.0, 4.0)
+                        drift_duration = random.uniform(0.4, 0.8)  # Faster for surprise
                     
-                    # Eyelids and speed values based on mood
+                    # Clamp drift targets to safe ranges
+                    yaw_cfg = self.servo_cfgs.get("yaw", {})
+                    pitch_cfg = self.servo_cfgs.get("pitch", {})
+                    drift_yaw = max(yaw_cfg.get("min_angle", 50), min(yaw_cfg.get("max_angle", 130), drift_yaw))
+                    drift_pitch = max(pitch_cfg.get("min_angle", 60), min(pitch_cfg.get("max_angle", 120), drift_pitch))
+                    
+                    # Mood-specific gaze bias
                     if self.mood == "sad":
-                        drift_pitch -= 10.0 # Sad companion looks down
-                        
-                    drift_duration = random.uniform(1.2, 2.5) # Smooth slow look shifts
+                        drift_pitch = min(drift_pitch + 8.0, pitch_cfg.get("max_angle", 120))  # Look down
+                    elif self.mood == "bored":
+                        drift_pitch = min(drift_pitch + 5.0, pitch_cfg.get("max_angle", 120))  # Slight droop
+                    
                     drift_elapsed = 0.0
                     
-                    # Set next look timer: extrovert looks around more often (3-6s), introvert stays still longer (6-12s)
-                    drift_interval = random.uniform(3.0, 6.0) if self.extroversion > 0.5 else random.uniform(6.0, 12.0)
+                    # Set next drift timer based on shift type and personality
+                    if drift_type == "large":
+                        # After a large shift, hold longer then blink
+                        drift_interval = random.uniform(2.5, 5.0)
+                        # Trigger a blink when making large attention shifts (natural human behavior)
+                        self.trigger_blink()
+                    elif drift_type == "medium":
+                        drift_interval = random.uniform(2.0, 4.0) if self.extroversion > 0.5 else random.uniform(4.0, 7.0)
+                    else:
+                        drift_interval = random.uniform(1.0, 2.5) if self.extroversion > 0.5 else random.uniform(2.0, 5.0)
+                    
                     drift_timer = now + drift_interval
                 
                 # Perform smooth cosine interpolation for the gaze target
-                if drift_elapsed < drift_duration:
+                if drift_elapsed < drift_duration and not self._curiosity_active:
                     drift_elapsed += dt
                     t = min(1.0, drift_elapsed / drift_duration)
                     # Cosine ease-in-out curve
@@ -405,17 +624,29 @@ class ServoController:
                     self.target_pos["yaw"] = drift_start_yaw + (drift_yaw - drift_start_yaw) * factor
                     self.target_pos["pitch"] = drift_start_pitch + (drift_pitch - drift_start_pitch) * factor
 
-            # Create an effective target copy (tremor disabled for ultra-smoothness)
+            # ----------------------------------------------------------
+            # Create effective target (add micro-saccades when idle)
+            # ----------------------------------------------------------
             effective_target = self.target_pos.copy()
-
-            # ----------------------------------------------------
-            # 2. EYELID TRACKING & BLINK OVERRIDES
-            # ----------------------------------------------------
+            
+            # Add micro-saccades when not actively tracking or in manual mode
             if not self.manual_override:
-                # Trigger automatic random blink
+                saccade_yaw, saccade_pitch = self._micro_saccade(self.run_time)
+                effective_target["yaw"] += saccade_yaw
+                effective_target["pitch"] += saccade_pitch
+
+            # ----------------------------------------------------------
+            # 2. EYELID TRACKING, MOOD, BLINK & FLUTTER OVERRIDES
+            # ----------------------------------------------------------
+            if not self.manual_override:
+                # Trigger automatic random blink (with mood-variable interval)
                 if now > next_blink_time:
-                    self.trigger_blink()
-                    next_blink_time = now + random.uniform(4.0, 10.0)
+                    # 25% chance of double-blink (natural human pattern)
+                    if random.random() < 0.25:
+                        self.trigger_double_blink()
+                    else:
+                        self.trigger_blink()
+                    next_blink_time = now + self._get_blink_interval()
                 
                 # Get normal baseline angles for this mood
                 lu_base, ll_base, ru_base, rl_base = self._get_eyelid_baselines()
@@ -434,9 +665,21 @@ class ServoController:
                 ru_target = ru_base + (pitch_diff * gain_upper)
                 rl_target = rl_base + (pitch_diff * gain_lower)
                 
-                # Apply blink/wink overrides
+                # Add breathing rhythm to upper eyelids (slow sinusoidal oscillation)
+                breath = self._breathing_offset(self.run_time)
+                lu_target += breath
+                ru_target += breath
+                
+                # Apply eyelid flutter overrides (mood transitions)
+                if self._flutter_active:
+                    flutter_close = self._flutter_progress
+                    lu_target = lu_target + (115.0 - lu_target) * flutter_close
+                    ll_target = ll_target + (85.0 - ll_target) * flutter_close
+                    ru_target = ru_target + (115.0 - ru_target) * flutter_close
+                    rl_target = rl_target + (85.0 - rl_target) * flutter_close
+                
+                # Apply blink/wink overrides (takes priority over flutter)
                 if self.blink_active:
-                    # Blink/wink closes selected eyelids.
                     # Upper eyelids go to closed (~125), Lower eyelids go to closed (~80)
                     if self.blink_side in ["both", "left"]:
                         lu_target = lu_target + (125.0 - lu_target) * self.blink_progress
@@ -445,14 +688,22 @@ class ServoController:
                         ru_target = ru_target + (125.0 - ru_target) * self.blink_progress
                         rl_target = rl_target + (80.0 - rl_target) * self.blink_progress
                 
+                # Curiosity perk-up: widen eyes briefly during snap phase
+                if self._curiosity_active and self._curiosity_phase == 0:
+                    # Briefly widen eyes (surprised-like baseline)
+                    lu_target = min(lu_target, 48.0)
+                    ru_target = min(ru_target, 48.0)
+                    ll_target = max(ll_target, 132.0)
+                    rl_target = max(rl_target, 132.0)
+                
                 effective_target["left_upper_eyelid"] = lu_target
                 effective_target["left_lower_eyelid"] = ll_target
                 effective_target["right_upper_eyelid"] = ru_target
                 effective_target["right_lower_eyelid"] = rl_target
             
-            # ----------------------------------------------------
+            # ----------------------------------------------------------
             # 3. EXPONENTIAL EASE-OUT INTERPOLATION & WRITES
-            # ----------------------------------------------------
+            # ----------------------------------------------------------
             for name in self.names:
                 cfg = self.servo_cfgs.get(name, {})
                 speed_limit = cfg.get("speed_limit", 150.0) # Max degrees per second
@@ -462,8 +713,8 @@ class ServoController:
                 
                 is_eyelid = name in ["left_upper_eyelid", "left_lower_eyelid", "right_upper_eyelid", "right_lower_eyelid"]
                 
-                # If a blink or wink is active, eyelids bypass ease-out and speed limits for instant, crisp motion
-                if self.blink_active and is_eyelid:
+                # If a blink, wink, or flutter is active, eyelids bypass ease-out for instant motion
+                if (self.blink_active or self._flutter_active) and is_eyelid:
                     new_pos = target
                 else:
                     # Retrieve speed factor k
@@ -487,12 +738,9 @@ class ServoController:
                     step_clamped = max(-max_step, min(max_step, step))
                     new_pos = current + step_clamped
                 
-                # Safety clamps from config parameters to prevent mechanical binding
-                min_lim = cfg.get("min_angle", 40.0) if is_eyelid else cfg.get("min_angle", 0.0)
-                max_lim = cfg.get("max_angle", 140.0) if is_eyelid else cfg.get("max_angle", 180.0)
-                min_lim = cfg.get("min_angle", min_lim)
-                max_lim = cfg.get("max_angle", max_lim)
-                
+                # Safety clamps from config
+                min_lim = cfg.get("min_angle", 40.0 if is_eyelid else 0.0)
+                max_lim = cfg.get("max_angle", 140.0 if is_eyelid else 180.0)
                 new_pos = max(min_lim, min(max_lim, new_pos))
                 
                 # Snap to target if very close to prevent tiny float adjustments
@@ -513,5 +761,7 @@ class ServoController:
             "extroversion": self.extroversion,
             "face_tracking": self.face_tracking_active,
             "manual_override": self.manual_override,
-            "mock": self.mock
+            "mock": self.mock,
+            "blink_active": self.blink_active,
+            "blink_side": self.blink_side
         }
