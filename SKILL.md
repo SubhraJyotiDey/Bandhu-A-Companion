@@ -22,10 +22,12 @@ This skill allows the agent to control the physical animatronic eyes and GPIO ou
 
 *   `set_eye_mood`: Call this to adjust the overall emotional look and speed of the mechanical eyes.
 *   `trigger_expression`: Call this to trigger a quick blink or wink.
+*   `play_gesture`: Call this to play a predefined gesture (e.g., startup, nod, shake, think, shock, scanning).
 *   `toggle_gpio`: Call this to turn on/off relays (e.g. lights) or status LEDs.
 *   `set_alarm`: Call this to schedule daily reminders or actions.
+*   `get_status`: Call this to retrieve the companion's current status and logs.
 
 ## Usage Guidelines
 
 You have physical mechanical eyes and control over GPIO pins.
-Whenever the user asks you to change your eye expression, look around differently, wink, blink, or toggle the lights, call the corresponding tools immediately!
+Whenever the user asks you to change your eye expression, look around differently, wink, blink, play a gesture, check status, or toggle the lights, call the corresponding tools immediately!

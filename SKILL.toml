@@ -26,3 +26,13 @@ command = "/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.
 name = "set_alarm"
 description = "Schedule a daily alarm. Time format: HH:MM. Task format: 'say: <message>' or 'toggle_gpio: <pin>:<state>'."
 command = "/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute set_alarm id={{id}} time={{time}} task={{task}}"
+
+[[tools]]
+name = "play_gesture"
+description = "Trigger a predefined eye gesture sequence on the companion's mechanical eyes. Gestures: startup, nod, shake, think, shock, scanning."
+command = "/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute play_gesture gesture={{gesture}}"
+
+[[tools]]
+name = "get_status"
+description = "Get current status, calibration logs, GPIO pin states, and alarm lists."
+command = "/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute get_status"
