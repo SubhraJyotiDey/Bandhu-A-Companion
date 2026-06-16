@@ -408,68 +408,134 @@ class ServoController:
                 # Snap current position to target closed state instantly
                 for k in self.names:
                     self.current_pos[k] = self.target_pos[k]
-                time.sleep(0.5)
+                time.sleep(0.6)
                 
-                # Easing: Slowly flutter open (3 rapid partial blinks)
-                # First partial open:
-                self.target_pos["left_upper_eyelid"] = 90.0
-                self.target_pos["right_upper_eyelid"] = 90.0
-                time.sleep(0.15)
-                self.target_pos["left_upper_eyelid"] = 110.0
-                self.target_pos["right_upper_eyelid"] = 110.0
+                # 1. Blink open eyes, look left
+                self.target_pos["left_upper_eyelid"] = 50.0  # open wide
+                self.target_pos["right_upper_eyelid"] = 50.0
+                self.target_pos["left_lower_eyelid"] = 130.0
+                self.target_pos["right_lower_eyelid"] = 130.0
+                self.target_pos["yaw"] = 55.0  # look far left
+                self.target_pos["pitch"] = 90.0
+                time.sleep(0.6)
+                
+                # 2. Blink
+                self.target_pos["left_upper_eyelid"] = 125.0
+                self.target_pos["right_upper_eyelid"] = 125.0
+                self.target_pos["left_lower_eyelid"] = 80.0
+                self.target_pos["right_lower_eyelid"] = 80.0
+                time.sleep(0.12)
+                
+                # 3. Look right (open eyes looking right)
+                self.target_pos["yaw"] = 125.0  # look far right
+                self.target_pos["left_upper_eyelid"] = 50.0
+                self.target_pos["right_upper_eyelid"] = 50.0
+                self.target_pos["left_lower_eyelid"] = 130.0
+                self.target_pos["right_lower_eyelid"] = 130.0
+                time.sleep(0.6)
+                
+                # 4. Notoriously blink (rapid double blink / flutter)
+                # First rapid close/open
+                self.target_pos["left_upper_eyelid"] = 125.0
+                self.target_pos["right_upper_eyelid"] = 125.0
+                self.target_pos["left_lower_eyelid"] = 80.0
+                self.target_pos["right_lower_eyelid"] = 80.0
+                time.sleep(0.08)
+                self.target_pos["left_upper_eyelid"] = 80.0
+                self.target_pos["right_upper_eyelid"] = 80.0
+                self.target_pos["left_lower_eyelid"] = 110.0
+                self.target_pos["right_lower_eyelid"] = 110.0
                 time.sleep(0.1)
+                # Second rapid close (and gaze starts shifting front during this close)
+                self.target_pos["left_upper_eyelid"] = 125.0
+                self.target_pos["right_upper_eyelid"] = 125.0
+                self.target_pos["left_lower_eyelid"] = 80.0
+                self.target_pos["right_lower_eyelid"] = 80.0
+                self.target_pos["yaw"] = 90.0
+                self.target_pos["pitch"] = 90.0
+                time.sleep(0.08)
                 
-                # Second open:
-                self.target_pos["left_upper_eyelid"] = 70.0
-                self.target_pos["right_upper_eyelid"] = 70.0
-                self.target_pos["pitch"] = 95.0 # look up slightly
-                time.sleep(0.2)
-                self.target_pos["left_upper_eyelid"] = 85.0
-                self.target_pos["right_upper_eyelid"] = 85.0
-                time.sleep(0.1)
+                # 5. Look front
+                self.target_pos["left_upper_eyelid"] = 50.0
+                self.target_pos["right_upper_eyelid"] = 50.0
+                self.target_pos["left_lower_eyelid"] = 130.0
+                self.target_pos["right_lower_eyelid"] = 130.0
+                time.sleep(0.6)
                 
-                # Fully open & center
+                # 6. Blink once
+                self.target_pos["left_upper_eyelid"] = 125.0
+                self.target_pos["right_upper_eyelid"] = 125.0
+                self.target_pos["left_lower_eyelid"] = 80.0
+                self.target_pos["right_lower_eyelid"] = 80.0
+                time.sleep(0.12)
                 self.target_pos["left_upper_eyelid"] = 60.0
                 self.target_pos["right_upper_eyelid"] = 60.0
                 self.target_pos["left_lower_eyelid"] = 120.0
                 self.target_pos["right_lower_eyelid"] = 120.0
-                self.target_pos["pitch"] = 90.0
-                time.sleep(0.3)
-                
-                # Double blink
-                self.trigger_double_blink()
-                time.sleep(0.8)
+                time.sleep(0.5)
                 
             elif name == "nod":
                 orig_pitch = self.target_pos["pitch"]
+                # Nod using wider range and coordinated eyelids (pitch-tracking)
                 for _ in range(2):
-                    self.target_pos["pitch"] = 105.0 # look down
-                    time.sleep(0.25)
-                    self.target_pos["pitch"] = 75.0  # look up
-                    time.sleep(0.25)
+                    # Look down: pitch 112, lids close slightly
+                    self.target_pos["pitch"] = 112.0
+                    self.target_pos["left_upper_eyelid"] = 95.0
+                    self.target_pos["right_upper_eyelid"] = 95.0
+                    self.target_pos["left_lower_eyelid"] = 110.0
+                    self.target_pos["right_lower_eyelid"] = 110.0
+                    time.sleep(0.22)
+                    
+                    # Look up: pitch 68, lids widen
+                    self.target_pos["pitch"] = 68.0
+                    self.target_pos["left_upper_eyelid"] = 48.0
+                    self.target_pos["right_upper_eyelid"] = 48.0
+                    self.target_pos["left_lower_eyelid"] = 125.0
+                    self.target_pos["right_lower_eyelid"] = 125.0
+                    time.sleep(0.22)
+                    
                 self.target_pos["pitch"] = orig_pitch
+                self.target_pos["left_upper_eyelid"] = 60.0
+                self.target_pos["right_upper_eyelid"] = 60.0
+                self.target_pos["left_lower_eyelid"] = 120.0
+                self.target_pos["right_lower_eyelid"] = 120.0
                 time.sleep(0.2)
                 
             elif name == "shake":
                 orig_yaw = self.target_pos["yaw"]
+                # Shake using wider range (55 to 125) and slightly narrowed eyes for a determined look
                 for _ in range(2):
-                    self.target_pos["yaw"] = 70.0  # look left
-                    time.sleep(0.25)
-                    self.target_pos["yaw"] = 110.0 # look right
-                    time.sleep(0.25)
+                    self.target_pos["yaw"] = 55.0  # look far left
+                    self.target_pos["left_upper_eyelid"] = 75.0
+                    self.target_pos["right_upper_eyelid"] = 75.0
+                    self.target_pos["left_lower_eyelid"] = 110.0
+                    self.target_pos["right_lower_eyelid"] = 110.0
+                    time.sleep(0.22)
+                    
+                    self.target_pos["yaw"] = 125.0 # look far right
+                    self.target_pos["left_upper_eyelid"] = 75.0
+                    self.target_pos["right_upper_eyelid"] = 75.0
+                    self.target_pos["left_lower_eyelid"] = 110.0
+                    self.target_pos["right_lower_eyelid"] = 110.0
+                    time.sleep(0.22)
+                    
                 self.target_pos["yaw"] = orig_yaw
+                self.target_pos["left_upper_eyelid"] = 60.0
+                self.target_pos["right_upper_eyelid"] = 60.0
+                self.target_pos["left_lower_eyelid"] = 120.0
+                self.target_pos["right_lower_eyelid"] = 120.0
                 time.sleep(0.2)
                 
             elif name == "think":
-                # Look up and left
-                self.target_pos["yaw"] = 75.0
-                self.target_pos["pitch"] = 75.0
-                # Asymmetric squint: left eye more closed than right
-                self.target_pos["left_upper_eyelid"] = 90.0
-                self.target_pos["left_lower_eyelid"] = 100.0
-                self.target_pos["right_upper_eyelid"] = 70.0
-                self.target_pos["right_lower_eyelid"] = 115.0
-                time.sleep(1.8)
+                # Look far up and left
+                self.target_pos["yaw"] = 60.0
+                self.target_pos["pitch"] = 65.0
+                # Expressive asymmetrical squint
+                self.target_pos["left_upper_eyelid"] = 92.0
+                self.target_pos["left_lower_eyelid"] = 98.0
+                self.target_pos["right_upper_eyelid"] = 68.0
+                self.target_pos["right_lower_eyelid"] = 110.0
+                time.sleep(2.0)
                 
                 # Settle back to center
                 self.target_pos["yaw"] = 90.0
@@ -483,40 +549,57 @@ class ServoController:
             elif name == "shock":
                 orig_yaw = self.target_pos["yaw"]
                 orig_pitch = self.target_pos["pitch"]
-                # Wide eyelids baseline
-                self.target_pos["left_upper_eyelid"] = 45.0
-                self.target_pos["left_lower_eyelid"] = 135.0
-                self.target_pos["right_upper_eyelid"] = 45.0
-                self.target_pos["right_lower_eyelid"] = 135.0
                 
-                # Quick micro-shake
-                for _ in range(3):
-                    self.target_pos["yaw"] = orig_yaw - 8.0
-                    time.sleep(0.1)
-                    self.target_pos["yaw"] = orig_yaw + 8.0
-                    time.sleep(0.1)
+                # Startled look: snap eyes wide open and look slightly up
+                self.target_pos["left_upper_eyelid"] = 40.0
+                self.target_pos["left_lower_eyelid"] = 140.0
+                self.target_pos["right_upper_eyelid"] = 40.0
+                self.target_pos["right_lower_eyelid"] = 140.0
+                self.target_pos["pitch"] = 65.0
+                time.sleep(0.1)
+                
+                # Quick trembling micro-shake
+                for _ in range(4):
+                    self.target_pos["yaw"] = orig_yaw - 10.0
+                    time.sleep(0.08)
+                    self.target_pos["yaw"] = orig_yaw + 10.0
+                    time.sleep(0.08)
                 
                 self.target_pos["yaw"] = orig_yaw
-                time.sleep(1.0)
+                self.target_pos["pitch"] = orig_pitch
+                time.sleep(0.8)
                 
                 # Slow blink to recover
                 self.trigger_blink()
                 time.sleep(0.4)
                 
             elif name == "scanning":
-                # Look far left to far right with wide eyes
-                self.target_pos["left_upper_eyelid"] = 50.0
-                self.target_pos["left_lower_eyelid"] = 130.0
-                self.target_pos["right_upper_eyelid"] = 50.0
-                self.target_pos["right_lower_eyelid"] = 130.0
+                # Look far left to far right with wide, alert eyes
+                self.target_pos["left_upper_eyelid"] = 48.0
+                self.target_pos["left_lower_eyelid"] = 132.0
+                self.target_pos["right_upper_eyelid"] = 48.0
+                self.target_pos["right_lower_eyelid"] = 132.0
                 
-                for _ in range(2):
-                    self.target_pos["yaw"] = 60.0  # look left
-                    time.sleep(0.4)
-                    self.target_pos["yaw"] = 120.0 # look right
-                    time.sleep(0.4)
+                # Coordinated 2D sine-wave scan trajectory
+                scan_points = [
+                    (50.0, 80.0),   # top-left
+                    (90.0, 95.0),   # mid-low
+                    (130.0, 80.0),  # top-right
+                    (90.0, 100.0),  # low-center
+                    (50.0, 90.0),   # mid-left
+                    (130.0, 90.0),  # mid-right
+                ]
+                for y, p in scan_points:
+                    self.target_pos["yaw"] = y
+                    self.target_pos["pitch"] = p
+                    time.sleep(0.35)
                 
                 self.target_pos["yaw"] = 90.0
+                self.target_pos["pitch"] = 90.0
+                self.target_pos["left_upper_eyelid"] = 60.0
+                self.target_pos["right_upper_eyelid"] = 60.0
+                self.target_pos["left_lower_eyelid"] = 120.0
+                self.target_pos["right_lower_eyelid"] = 120.0
                 time.sleep(0.3)
         finally:
             self.gesture_active = False
