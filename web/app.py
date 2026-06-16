@@ -447,6 +447,84 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
             
         return jsonify({"success": False, "error": f"Tool '{tool}' not implemented."})
 
+    @app.route("/api/debug-skills", methods=["GET"])
+    def debug_skills():
+        """Lists files, permissions, and runs debug commands for claw-eye skill."""
+        import subprocess
+        import stat
+        result = {}
+        
+        # 1. Check folder existence and list files
+        paths = [
+            "/home/pi/open-skills/skills/claw-eye",
+            "/home/pi/.zeroclaw/workspace/skills/claw-eye"
+        ]
+        
+        result["directories"] = {}
+        for path in paths:
+            if os.path.exists(path):
+                files = []
+                try:
+                    for f in os.listdir(path):
+                        fpath = os.path.join(path, f)
+                        st = os.stat(fpath)
+                        is_sym = os.path.islink(fpath)
+                        files.append({
+                            "name": f,
+                            "size": st.st_size,
+                            "mode": oct(st.st_mode),
+                            "owner": st.st_uid,
+                            "group": st.st_gid,
+                            "is_symlink": is_sym,
+                            "target": os.readlink(fpath) if is_sym else None
+                        })
+                except Exception as e:
+                    files = {"error": str(e)}
+                result["directories"][path] = {
+                    "exists": True,
+                    "files": files
+                }
+            else:
+                result["directories"][path] = {
+                    "exists": False
+                }
+                
+        # 2. Try executing some zeroclaw debug commands
+        result["commands"] = {}
+        cmds = [
+            ["zeroclaw", "--version"]
+        ]
+        for cmd in cmds:
+            try:
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=5.0)
+                result["commands"][" ".join(cmd)] = {
+                    "stdout": res.stdout[:2000],
+                    "stderr": res.stderr[:2000],
+                    "code": res.returncode
+                }
+            except Exception as e:
+                result["commands"][" ".join(cmd)] = {"error": str(e)}
+                
+        # 3. Read skill contents
+        result["contents"] = {}
+        for path in paths:
+            toml_path = os.path.join(path, "SKILL.toml")
+            md_path = os.path.join(path, "SKILL.md")
+            if os.path.exists(toml_path):
+                try:
+                    with open(toml_path, "r") as f:
+                        result["contents"][toml_path] = f.read()
+                except Exception as e:
+                    result["contents"][toml_path] = f"error: {e}"
+            if os.path.exists(md_path):
+                try:
+                    with open(md_path, "r") as f:
+                        result["contents"][md_path] = f.read()
+                except Exception as e:
+                    result["contents"][md_path] = f"error: {e}"
+                    
+        return jsonify(result)
+
     # Run the web server in a separate thread so it doesn't block the caller
     web_thread = threading.Thread(
         target=lambda: app.run(host=host, port=port, debug=False, use_reloader=False),
