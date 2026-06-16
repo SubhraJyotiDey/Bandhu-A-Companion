@@ -63,13 +63,14 @@ class ServoController:
         
         # Speed/stiffness factors (k) for exponential ease-out
         # Higher k = faster response, lower k = smoother/slower response
+        # Decreased for ultimate smoothness and quiet servo operation
         self.speed_k = {
-            "yaw": 5.0,
-            "pitch": 5.0,
-            "left_upper_eyelid": 4.0,
-            "left_lower_eyelid": 4.0,
-            "right_upper_eyelid": 4.0,
-            "right_lower_eyelid": 4.0
+            "yaw": 2.0,
+            "pitch": 2.0,
+            "left_upper_eyelid": 1.8,
+            "left_lower_eyelid": 1.8,
+            "right_upper_eyelid": 1.8,
+            "right_lower_eyelid": 1.8
         }
         self.run_time = 0.0
 
@@ -247,9 +248,9 @@ class ServoController:
             threading.Thread(target=self._blink_sequence_thread, daemon=True).start()
 
     def _blink_sequence_thread(self):
-        """Coordinated blink timing using easing curves: closes lids in 60ms, holds 20ms, opens in 200ms."""
-        # 1. Close eyelids (60ms) using quadratic ease-in
-        close_duration = 0.06
+        """Coordinated blink timing using easing curves: closes lids in 100ms, holds 30ms, opens in 250ms."""
+        # 1. Close eyelids (100ms) using quadratic ease-in
+        close_duration = 0.10
         start_time = time.time()
         while time.time() - start_time < close_duration:
             elapsed = time.time() - start_time
@@ -258,11 +259,11 @@ class ServoController:
             time.sleep(0.008)
         self.blink_progress = 1.0
         
-        # 2. Hold closed briefly (20ms)
-        time.sleep(0.02)
+        # 2. Hold closed briefly (30ms)
+        time.sleep(0.03)
         
-        # 3. Open eyelids (200ms) using cubic ease-out
-        open_duration = 0.20
+        # 3. Open eyelids (250ms) using cubic ease-out
+        open_duration = 0.25
         start_time = time.time()
         while time.time() - start_time < open_duration:
             elapsed = time.time() - start_time
@@ -283,18 +284,18 @@ class ServoController:
     def _double_blink_thread(self):
         """Two quick blinks with a brief pause between them."""
         for i in range(2):
-            # Close (50ms)
-            close_dur = 0.05
+            # Close (80ms)
+            close_dur = 0.08
             start = time.time()
             while time.time() - start < close_dur:
                 t = min(1.0, (time.time() - start) / close_dur)
                 self.blink_progress = t * t
                 time.sleep(0.008)
             self.blink_progress = 1.0
-            time.sleep(0.015)
+            time.sleep(0.02)
             
-            # Open (150ms)
-            open_dur = 0.15
+            # Open (200ms)
+            open_dur = 0.20
             start = time.time()
             while time.time() - start < open_dur:
                 t = min(1.0, (time.time() - start) / open_dur)
@@ -304,7 +305,7 @@ class ServoController:
             
             # Pause between blinks (only after first)
             if i == 0:
-                time.sleep(random.uniform(0.18, 0.30))
+                time.sleep(random.uniform(0.25, 0.40))
         
         self.blink_active = False
 
@@ -316,8 +317,8 @@ class ServoController:
             threading.Thread(target=self._wink_sequence_thread, args=(side,), daemon=True).start()
 
     def _wink_sequence_thread(self, side):
-        # 1. Close eyelid (60ms) using quadratic ease-in
-        close_duration = 0.06
+        # 1. Close eyelid (100ms) using quadratic ease-in
+        close_duration = 0.10
         start_time = time.time()
         while time.time() - start_time < close_duration:
             elapsed = time.time() - start_time
@@ -329,8 +330,8 @@ class ServoController:
         # 2. Hold closed briefly (40ms)
         time.sleep(0.04)
         
-        # 3. Open eyelid (200ms) using cubic ease-out
-        open_duration = 0.20
+        # 3. Open eyelid (250ms) using cubic ease-out
+        open_duration = 0.25
         start_time = time.time()
         while time.time() - start_time < open_duration:
             elapsed = time.time() - start_time
@@ -428,32 +429,16 @@ class ServoController:
     # ------------------------------------------------------------------
 
     def _micro_saccade(self, t):
-        """Generates tiny involuntary eye jitter using summed sine waves at
-        incommensurate frequencies (pseudo-Perlin noise). Returns (yaw_offset, pitch_offset).
-        Amplitude is ±0.3° — imperceptible to observers but makes the eye feel alive.
-        """
-        # Three incommensurate frequencies for organic irregularity
-        yaw_noise = (
-            0.15 * math.sin(t * 2.31 + 0.7) +
-            0.10 * math.sin(t * 3.87 + 1.3) +
-            0.05 * math.sin(t * 7.13 + 2.1)
-        )
-        pitch_noise = (
-            0.12 * math.sin(t * 1.97 + 3.2) +
-            0.08 * math.sin(t * 4.53 + 0.5) +
-            0.05 * math.sin(t * 6.71 + 1.8)
-        )
-        return yaw_noise, pitch_noise
+        """Disabled to prevent constant servo micro-adjustments and buzzing noises."""
+        return 0.0, 0.0
 
     # ------------------------------------------------------------------
     # BREATHING RHYTHM (slow sinusoidal eyelid oscillation)
     # ------------------------------------------------------------------
 
     def _breathing_offset(self, t):
-        """Returns a slow sinusoidal offset for upper eyelids simulating breathing.
-        Oscillation: ±1.5° at ~0.15Hz (one full cycle every ~6.7 seconds).
-        """
-        return 1.5 * math.sin(t * 0.15 * 2.0 * math.pi)
+        """Disabled to prevent constant eyelid motor updates and buzzing noises."""
+        return 0.0
 
     # ------------------------------------------------------------------
     # MAIN CONTROL LOOP
@@ -528,37 +513,36 @@ class ServoController:
                 if self._curiosity_active:
                     elapsed_c = now - self._curiosity_timer
                     if self._curiosity_phase == 0:
-                        # Phase 0: Quick snap to curiosity target (fast k, ~200ms)
+                        # Phase 0: Slow curious look to curiosity target (slower transition)
                         self.target_pos["yaw"] = self._curiosity_target_yaw
                         self.target_pos["pitch"] = self._curiosity_target_pitch
-                        # Override speed for snap
-                        self.speed_k["yaw"] = 12.0
-                        self.speed_k["pitch"] = 12.0
-                        if elapsed_c > 0.25:
+                        # Smooth transition speed
+                        self.speed_k["yaw"] = 2.0
+                        self.speed_k["pitch"] = 2.0
+                        if elapsed_c > 1.0:
                             self._curiosity_phase = 1
                             self._curiosity_timer = now
-                            # Trigger a blink at the snap point (humans blink on attention shifts)
                             self.trigger_blink()
                     elif self._curiosity_phase == 1:
                         # Phase 1: Hold and "inspect" (1.0-1.5s)
                         # Restore normal speed
-                        self.speed_k["yaw"] = 5.0
-                        self.speed_k["pitch"] = 5.0
-                        if elapsed_c > random.uniform(1.0, 1.5):
+                        self.speed_k["yaw"] = 2.0
+                        self.speed_k["pitch"] = 2.0
+                        if elapsed_c > random.uniform(1.5, 2.5):
                             self._curiosity_phase = 2
                             self._curiosity_timer = now
                     elif self._curiosity_phase == 2:
                         # Phase 2: Slow drift back toward center
-                        self.speed_k["yaw"] = 3.0
-                        self.speed_k["pitch"] = 3.0
-                        self.target_pos["yaw"] = 90.0 + random.uniform(-5.0, 5.0)
+                        self.speed_k["yaw"] = 1.5
+                        self.speed_k["pitch"] = 1.5
+                        self.target_pos["yaw"] = 90.0 + random.uniform(-4.0, 4.0)
                         self.target_pos["pitch"] = 90.0
-                        if elapsed_c > 1.5:
+                        if elapsed_c > 1.8:
                             self._curiosity_active = False
-                            self.speed_k["yaw"] = 5.0
-                            self.speed_k["pitch"] = 5.0
+                            self.speed_k["yaw"] = 2.0
+                            self.speed_k["pitch"] = 2.0
                             # Reset drift timer so normal drift resumes
-                            drift_timer = now + random.uniform(1.0, 3.0)
+                            drift_timer = now + random.uniform(2.0, 4.0)
                             drift_elapsed = drift_duration  # Mark drift as complete
                 
                 elif now > drift_timer:
@@ -570,23 +554,23 @@ class ServoController:
                     if roll < 0.60:
                         # 60% — Micro-glance: small adjustment near current position
                         drift_type = "small"
-                        drift_yaw = drift_start_yaw + random.uniform(-5.0, 5.0)
-                        drift_pitch = drift_start_pitch + random.uniform(-3.0, 3.0)
-                        drift_duration = random.uniform(0.6, 1.2)
+                        drift_yaw = drift_start_yaw + random.uniform(-3.0, 3.0)
+                        drift_pitch = drift_start_pitch + random.uniform(-1.5, 1.5)
+                        drift_duration = random.uniform(2.0, 3.5)
                     elif roll < 0.85:
                         # 25% — Medium shift: purposeful look
                         drift_type = "medium"
-                        gaze_range = 12.0 * self.extroversion
+                        gaze_range = 8.0 * self.extroversion
                         drift_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
                         drift_pitch = 90.0 + random.uniform(-gaze_range / 3.0, gaze_range / 4.0)
-                        drift_duration = random.uniform(1.0, 2.0)
+                        drift_duration = random.uniform(2.5, 4.5)
                     else:
-                        # 15% — Large attention shift: "what was that?"
+                        # 15% — Large attention shift
                         drift_type = "large"
-                        gaze_range = 22.0 * self.extroversion
+                        gaze_range = 15.0 * self.extroversion
                         drift_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
-                        drift_pitch = 90.0 + random.uniform(-6.0, 4.0)
-                        drift_duration = random.uniform(0.4, 0.8)  # Faster for surprise
+                        drift_pitch = 90.0 + random.uniform(-5.0, 3.0)
+                        drift_duration = random.uniform(2.0, 3.5)
                     
                     # Clamp drift targets to safe ranges
                     yaw_cfg = self.servo_cfgs.get("yaw", {})
@@ -605,13 +589,12 @@ class ServoController:
                     # Set next drift timer based on shift type and personality
                     if drift_type == "large":
                         # After a large shift, hold longer then blink
-                        drift_interval = random.uniform(2.5, 5.0)
-                        # Trigger a blink when making large attention shifts (natural human behavior)
+                        drift_interval = random.uniform(5.0, 10.0)
                         self.trigger_blink()
                     elif drift_type == "medium":
-                        drift_interval = random.uniform(2.0, 4.0) if self.extroversion > 0.5 else random.uniform(4.0, 7.0)
+                        drift_interval = random.uniform(5.0, 10.0) if self.extroversion > 0.5 else random.uniform(7.0, 14.0)
                     else:
-                        drift_interval = random.uniform(1.0, 2.5) if self.extroversion > 0.5 else random.uniform(2.0, 5.0)
+                        drift_interval = random.uniform(4.0, 7.0) if self.extroversion > 0.5 else random.uniform(6.0, 12.0)
                     
                     drift_timer = now + drift_interval
                 
@@ -718,7 +701,7 @@ class ServoController:
                     new_pos = target
                 else:
                     # Retrieve speed factor k
-                    k = self.speed_k.get(name, 5.0)
+                    k = self.speed_k.get(name, 2.0)
                     if self.mood == "sad" or self.mood == "bored":
                         k *= 0.6
                     elif self.mood == "excited" or self.mood == "surprised":
@@ -744,7 +727,7 @@ class ServoController:
                 new_pos = max(min_lim, min(max_lim, new_pos))
                 
                 # Snap to target if very close to prevent tiny float adjustments
-                if abs(target - new_pos) < 0.05:
+                if abs(target - new_pos) < 0.15:
                     new_pos = target
                     
                 self.current_pos[name] = new_pos

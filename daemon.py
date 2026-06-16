@@ -167,7 +167,7 @@ class CompanionDaemon:
                         self._smooth_yaw = target_yaw
                         self._smooth_pitch = target_pitch
                     else:
-                        alpha = 0.20 # Smoothing factor (lower = smoother/slower, higher = snappier)
+                        alpha = 0.10 # Smoothing factor (lower = smoother/slower, higher = snappier)
                         self._smooth_yaw = self._smooth_yaw + alpha * (target_yaw - self._smooth_yaw)
                         self._smooth_pitch = self._smooth_pitch + alpha * (target_pitch - self._smooth_pitch)
                     
