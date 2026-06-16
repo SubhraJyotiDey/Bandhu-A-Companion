@@ -1061,6 +1061,26 @@ class ServoController:
                 if (self.blink_active or self._flutter_active) and is_eyelid:
                     new_pos = target
                     self.velocities[name] = 0.0
+                elif name == "pitch":
+                    # Bypass spring-damper for pitch; use standard exponential ease-out (no spring/damper bounce)
+                    k = self.speed_k.get(name, 1.4)
+                    if self.mood == "sad" or self.mood == "bored":
+                        k *= 0.6
+                    elif self.mood == "excited" or self.mood == "surprised":
+                        k *= 1.4
+                    
+                    factor = 1.0 - math.exp(-k * dt)
+                    step = (target - current) * factor
+                    
+                    max_step = speed_limit * dt
+                    if self.mood == "sad" or self.mood == "bored":
+                        max_step *= 0.6
+                    elif self.mood == "excited" or self.mood == "surprised":
+                        max_step *= 1.3
+                        
+                    step_clamped = max(-max_step, min(max_step, step))
+                    new_pos = current + step_clamped
+                    self.velocities[name] = 0.0
                 else:
                     # Determine omega (stiffness) and zeta (damping) based on channel and mood
                     if is_eyelid:
