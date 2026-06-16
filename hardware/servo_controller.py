@@ -65,14 +65,16 @@ class ServoController:
         # Higher k = faster response, lower k = smoother/slower response
         # Decreased for ultimate smoothness and quiet servo operation
         self.speed_k = {
-            "yaw": 2.0,
-            "pitch": 2.0,
-            "left_upper_eyelid": 1.8,
-            "left_lower_eyelid": 1.8,
-            "right_upper_eyelid": 1.8,
-            "right_lower_eyelid": 1.8
+            "yaw": 1.4,
+            "pitch": 1.4,
+            "left_upper_eyelid": 1.2,
+            "left_lower_eyelid": 1.2,
+            "right_upper_eyelid": 1.2,
+            "right_lower_eyelid": 1.2
         }
         self.run_time = 0.0
+        self.stationary_time = {name: 0.0 for name in self.names}
+        self._detached_channels = set()
 
         # Initialize hardware if not mocking
         if not self.mock:
@@ -135,6 +137,9 @@ class ServoController:
 
     def _write_servo_angle(self, name, angle):
         """Applies calibration (trim, min/max limits, inversion) and writes to hardware/mock."""
+        if hasattr(self, "_detached_channels") and name in self._detached_channels:
+            self._detached_channels.discard(name)
+            
         cfg = self.servo_cfgs.get(name, {})
         if not cfg:
             return
@@ -436,6 +441,47 @@ class ServoController:
         """Disabled to prevent constant eyelid motor updates and buzzing noises."""
         return 0.0
 
+    def _detach_servo(self, name):
+        """Disables the PWM signal to the servo to eliminate buzzing/noises when stationary."""
+        if self.mock:
+            return
+        try:
+            cfg = self.servo_cfgs.get(name, {})
+            if not cfg:
+                return
+                
+            if self.servo_mode == "pca9685":
+                addr = self.config.get("pca9685", {}).get("address", 0x40)
+                channel = cfg.get("pin", 0)
+                reg = 0x06 + 4 * channel
+                
+                # If we've already detached this channel, don't repeat I2C write
+                if not hasattr(self, "_detached_channels"):
+                    self._detached_channels = set()
+                if name in self._detached_channels:
+                    return
+                self._detached_channels.add(name)
+                if hasattr(self, "_last_steps") and name in self._last_steps:
+                    del self._last_steps[name] # Clear cache so next write works
+                    
+                # Set full OFF bit (bit 4 of LED_OFF_H register = 0x10)
+                self.bus.write_byte_data(addr, reg + 3, 0x10)
+                
+            elif self.servo_mode == "gpio":
+                servo = self.gpio_servos.get(name)
+                if servo:
+                    if not hasattr(self, "_detached_channels"):
+                        self._detached_channels = set()
+                    if name in self._detached_channels:
+                        return
+                    self._detached_channels.add(name)
+                    if hasattr(self, "_last_angles") and name in self._last_angles:
+                        del self._last_angles[name]
+                        
+                    servo.value = None
+        except Exception:
+            pass
+
     # ------------------------------------------------------------------
     # MAIN CONTROL LOOP
     # ------------------------------------------------------------------
@@ -585,12 +631,12 @@ class ServoController:
                     # Set next drift timer based on shift type and personality
                     if drift_type == "large":
                         # After a large shift, hold longer then blink
-                        drift_interval = random.uniform(5.0, 10.0)
+                        drift_interval = random.uniform(8.0, 15.0)
                         self.trigger_blink()
                     elif drift_type == "medium":
-                        drift_interval = random.uniform(5.0, 10.0) if self.extroversion > 0.5 else random.uniform(7.0, 14.0)
+                        drift_interval = random.uniform(7.0, 14.0) if self.extroversion > 0.5 else random.uniform(10.0, 20.0)
                     else:
-                        drift_interval = random.uniform(4.0, 7.0) if self.extroversion > 0.5 else random.uniform(6.0, 12.0)
+                        drift_interval = random.uniform(6.0, 10.0) if self.extroversion > 0.5 else random.uniform(9.0, 16.0)
                     
                     drift_timer = now + drift_interval
                 
@@ -725,8 +771,19 @@ class ServoController:
                     new_pos = target
                     
                 self.current_pos[name] = new_pos
-                self._write_servo_angle(name, new_pos)
-                time.sleep(0.002) # Stagger writes to minimize power rail sag and servo noise
+                
+                # Update stationary time and write/detach accordingly
+                if abs(target - new_pos) < 0.15:
+                    self.stationary_time[name] += dt
+                else:
+                    self.stationary_time[name] = 0.0
+                    
+                if self.stationary_time[name] > 0.8:
+                    self._detach_servo(name)
+                else:
+                    self._write_servo_angle(name, new_pos)
+                    
+                time.sleep(0.003) # Stagger writes to minimize power rail sag and servo noise
                 
             time.sleep(0.01) # ~100Hz control loop
 
