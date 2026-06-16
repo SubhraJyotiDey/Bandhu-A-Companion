@@ -163,6 +163,56 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
         daemon.log(f"[Portal] Saved calibration parameters for: {name}")
         return jsonify({"success": True})
 
+    @app.route("/api/calibration/start", methods=["POST"])
+    def start_calibration():
+        """Starts slow servo sweep calibration to autodetect limits."""
+        data = request.json or {}
+        name = data.get("servo")
+        direction = data.get("direction") # "min" or "max"
+        
+        if not name or direction not in ["min", "max"]:
+            return jsonify({"success": False, "error": "Missing or invalid parameters"})
+            
+        success = daemon.servos.start_calibration_sweep(name, direction)
+        return jsonify({"success": success})
+
+    @app.route("/api/calibration/stop", methods=["POST"])
+    def stop_calibration():
+        """Stops servo sweep calibration and automatically saves the limit angle."""
+        data = request.json or {}
+        name = data.get("servo")
+        direction = data.get("direction") # "min" or "max"
+        
+        if not name or direction not in ["min", "max"]:
+            return jsonify({"success": False, "error": "Missing parameters"})
+            
+        final_angle = daemon.servos.stop_calibration_sweep()
+        rounded_angle = round(final_angle, 1)
+        
+        # Save to config.json
+        config = daemon.config_manager.config
+        if "servos" not in config:
+            config["servos"] = {}
+        if name not in config["servos"]:
+            config["servos"][name] = {}
+            
+        srv = config["servos"][name]
+        
+        if direction == "min":
+            srv["min_angle"] = rounded_angle
+        else:
+            srv["max_angle"] = rounded_angle
+            
+        daemon.config_manager.save_config()
+        daemon.log(f"[Calibration] Saved autodetected {direction}_angle limit for {name}: {rounded_angle}")
+        
+        return jsonify({
+            "success": True, 
+            "servo": name, 
+            "direction": direction, 
+            "angle": rounded_angle
+        })
+
     @app.route("/api/face/mock", methods=["POST"])
     def mock_face():
         """Receives click-and-drag coordinates from portal grid to mock tracking on Windows."""

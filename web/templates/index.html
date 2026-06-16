@@ -579,9 +579,99 @@
         .text-cyan { color: var(--accent-cyan); }
         .text-pink { color: var(--accent-pink); }
         .text-white { color: #fff; }
+
+        /* Calibration Wizard Modal */
+        .cal-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 15, 30, 0.7);
+            backdrop-filter: blur(12px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .cal-modal.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .cal-modal-content {
+            background: rgba(30, 41, 59, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            width: 90%;
+            max-width: 440px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .cal-angle-display {
+            font-size: 48px;
+            font-weight: 800;
+            color: var(--accent-cyan);
+            margin: 15px 0;
+            font-family: monospace;
+            text-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+        }
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
     </style>
 </head>
 <body>
+    <!-- Calibration Wizard Modal -->
+    <div id="calibration-wizard" class="cal-modal">
+        <div class="cal-modal-content">
+            <h2 style="margin:0; font-size:18px; color:var(--accent-pink); letter-spacing:1px; text-transform:uppercase;">Auto-Limit Calibration</h2>
+            <p style="font-size:12px; color:var(--text-secondary); margin:0;">Follow the prompts to automatically detect the physical boundaries of your servos.</p>
+            
+            <div style="text-align:left; display:flex; flex-direction:column; gap:5px;">
+                <label style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase;">Select Servo Module</label>
+                <select id="cal-wizard-servo" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:8px; border-radius:8px; outline:none; font-size:13px; font-family:inherit;">
+                    <option value="left_upper_eyelid">Left Upper Eyelid</option>
+                    <option value="left_lower_eyelid">Left Lower Eyelid</option>
+                    <option value="right_upper_eyelid">Right Upper Eyelid</option>
+                    <option value="right_lower_eyelid">Right Lower Eyelid</option>
+                    <option value="yaw">Yaw (Horizontal Look)</option>
+                    <option value="pitch">Pitch (Vertical Look)</option>
+                </select>
+            </div>
+            
+            <div id="cal-wizard-step1" style="display:flex; flex-direction:column; gap:10px;">
+                <div style="font-size:12px; font-weight:bold; color:#fff;">Step 1: Calibrate MIN Angle Limit</div>
+                <div style="font-size:11px; color:var(--text-secondary);">Click Start. The servo will slowly turn. Watch the physical eye and click **Stop & Save** when it reaches its mechanical boundary (stops moving or starts to bind).</div>
+                <button class="btn btn-cyan" onclick="startWizardSweep('min')">Start Min Sweep</button>
+            </div>
+            
+            <div id="cal-wizard-step2" style="display:none; flex-direction:column; gap:10px;">
+                <div style="font-size:12px; font-weight:bold; color:#fff;">Step 2: Calibrate MAX Angle Limit</div>
+                <div style="font-size:11px; color:var(--text-secondary);">Click Start. The servo will slowly sweep in the other direction. Click **Stop & Save** when it reaches its maximum mechanical boundary.</div>
+                <button class="btn btn-cyan" onclick="startWizardSweep('max')">Start Max Sweep</button>
+            </div>
+            
+            <div id="cal-wizard-active" style="display:none; flex-direction:column; gap:10px; align-items:center;">
+                <div id="cal-active-direction" style="font-size:12px; font-weight:bold; color:var(--accent-pink); text-transform:uppercase; animation: pulse 1s infinite;">Sweeping Min Angle...</div>
+                <div class="cal-angle-display" id="cal-live-angle">90.0°</div>
+                <button class="btn btn-pink" style="width:100%; font-size:14px; font-weight:bold; padding:12px;" onclick="stopWizardSweep()">STOP & SAVE LIMIT</button>
+            </div>
+            
+            <div style="display:flex; justify-content:flex-end; margin-top:10px; border-top:1px solid rgba(255,255,255,0.05); padding-top:10px;">
+                <button class="btn" style="background:transparent; border:none; color:var(--text-secondary);" onclick="closeCalibrationWizard()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <div id="glow-left" class="ambient-glow"></div>
     <div id="glow-right" class="ambient-glow"></div>
 
@@ -658,6 +748,7 @@
             <div class="panel-title" style="display:flex; justify-content:space-between">
                 6-Servo Calibration Panel
                 <div style="display:flex; gap:10px">
+                    <button class="btn btn-cyan" onclick="openCalibrationWizard()" style="padding: 4px 10px; font-size:11px">Auto-Limit Wizard</button>
                     <button class="btn btn-pink" onclick="toggleManualMode(false)" id="btn-release" style="padding: 4px 10px; font-size:11px">Auto Gaze</button>
                     <button class="btn btn-cyan" onclick="toggleManualMode(true)" id="btn-lock" style="padding: 4px 10px; font-size:11px; display:none">Manual Lock</button>
                 </div>
@@ -1281,6 +1372,96 @@
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
                 body: JSON.stringify({text: text})
+            });
+        }
+
+        // Guided Calibration Wizard logic
+        let wizardActiveServo = "";
+        let wizardActiveDirection = "";
+        let wizardTimer = null;
+
+        function openCalibrationWizard() {
+            document.getElementById("cal-wizard-step1").style.display = "flex";
+            document.getElementById("cal-wizard-step2").style.display = "none";
+            document.getElementById("cal-wizard-active").style.display = "none";
+            document.getElementById("cal-wizard-servo").disabled = false;
+            
+            document.getElementById("calibration-wizard").classList.add("active");
+            toggleManualMode(true);
+        }
+
+        function closeCalibrationWizard() {
+            if (wizardTimer) {
+                clearInterval(wizardTimer);
+                wizardTimer = null;
+            }
+            fetch("/api/calibration/stop", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({servo: wizardActiveServo, direction: wizardActiveDirection})
+            });
+            
+            document.getElementById("calibration-wizard").classList.remove("active");
+            toggleManualMode(false);
+        }
+
+        function startWizardSweep(direction) {
+            wizardActiveServo = document.getElementById("cal-wizard-servo").value;
+            wizardActiveDirection = direction;
+            document.getElementById("cal-wizard-servo").disabled = true;
+            
+            document.getElementById("cal-wizard-step1").style.display = "none";
+            document.getElementById("cal-wizard-step2").style.display = "none";
+            document.getElementById("cal-wizard-active").style.display = "flex";
+            
+            document.getElementById("cal-active-direction").innerText = `Sweeping ${direction.toUpperCase()} Angle...`;
+            
+            fetch("/api/calibration/start", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({servo: wizardActiveServo, direction: direction})
+            }).then(res => res.json()).then(data => {
+                if (data.success) {
+                    wizardTimer = setInterval(() => {
+                        fetch("/api/status")
+                            .then(res => res.json())
+                            .then(status => {
+                                const angle = status.servo.current[wizardActiveServo];
+                                document.getElementById("cal-live-angle").innerText = `${angle.toFixed(1)}°`;
+                            });
+                    }, 100);
+                } else {
+                    alert("Failed to start calibration sweep.");
+                    closeCalibrationWizard();
+                }
+            });
+        }
+
+        function stopWizardSweep() {
+            if (wizardTimer) {
+                clearInterval(wizardTimer);
+                wizardTimer = null;
+            }
+            
+            fetch("/api/calibration/stop", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({servo: wizardActiveServo, direction: wizardActiveDirection})
+            }).then(res => res.json()).then(data => {
+                if (data.success) {
+                    fetchFullCalibrationValues();
+                    
+                    if (wizardActiveDirection === "min") {
+                        document.getElementById("cal-wizard-active").style.display = "none";
+                        document.getElementById("cal-wizard-step2").style.display = "flex";
+                    } else {
+                        alert(`Successfully calibrated limits for ${wizardActiveServo}!\nMin: ${document.getElementById(`cal-min-${wizardActiveServo}`).value}°\nMax: ${data.angle}°`);
+                        closeCalibrationWizard();
+                    }
+                } else {
+                    alert("Failed to save calibration limit.");
+                    closeCalibrationWizard();
+                }
             });
         }
     </script>

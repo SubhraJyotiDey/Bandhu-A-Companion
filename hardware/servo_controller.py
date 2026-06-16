@@ -51,6 +51,10 @@ class ServoController:
         self._flutter_active = False
         self._flutter_progress = 0.0
         
+        # Calibration sweep variables
+        self.calibration_active = False
+        self.calibration_angle = 90.0
+        
         # Curiosity perk-up state
         self._curiosity_active = False
         self._curiosity_phase = 0  # 0=snap, 1=hold, 2=return
@@ -516,6 +520,45 @@ class ServoController:
                 time.sleep(0.3)
         finally:
             self.gesture_active = False
+
+    def start_calibration_sweep(self, name, direction):
+        """Starts a slow calibration sweep for a specific servo to auto-detect physical limits."""
+        self.calibration_active = False # Stop any active sweep first
+        time.sleep(0.05) # Give it a moment to stop
+        
+        if name in self.names:
+            self.manual_override = True
+            self.calibration_active = True
+            threading.Thread(target=self._calibration_sweep_thread, args=(name, direction), daemon=True).start()
+            return True
+        return False
+
+    def _calibration_sweep_thread(self, name, direction):
+        # Start at the current target angle or center
+        self.calibration_angle = self.current_pos.get(name, 90.0)
+        
+        while self.calibration_active:
+            if direction == "min":
+                self.calibration_angle -= 1.0
+            elif direction == "max":
+                self.calibration_angle += 1.0
+                
+            # Clamp to safe physical limits to prevent extreme servo damage
+            self.calibration_angle = max(10.0, min(170.0, self.calibration_angle))
+            
+            # Update targets directly, bypassing smoothing to give immediate feedback
+            self.target_pos[name] = self.calibration_angle
+            self.current_pos[name] = self.calibration_angle
+            
+            # Slow rate: 10 degrees per second
+            time.sleep(0.1)
+
+    def stop_calibration_sweep(self):
+        """Stops the sweep and returns the final calibrated angle reached."""
+        self.calibration_active = False
+        time.sleep(0.05)
+        self.manual_override = False
+        return self.calibration_angle
 
     # ------------------------------------------------------------------
     # MOOD-DEPENDENT EYELID BASELINES
