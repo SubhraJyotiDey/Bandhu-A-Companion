@@ -1,33 +1,94 @@
 ---
 name: claw-eye
-description: Control the physical animatronic eye mechanism servos, expressions, and room lights via GPIO.
-version: 1.0.0
-author: Subhr
-license: MIT
-category: hardware
-tags:
-  - servos
-  - gpio
-  - companion
-  - eyes
-permissions:
-  - execute
+description: Control the physical animatronic eye mechanism, servo expressions, gestures, GPIO outputs, and alarms on the Raspberry Pi companion robot.
 ---
 
-# Claw-Eye Skill
+# Claw-Eye Companion Controller
 
-This skill allows the agent to control the physical animatronic eyes and GPIO outputs on the Raspberry Pi.
+You have physical mechanical animatronic eyes and control over GPIO pins on a Raspberry Pi. Use the shell commands below to control them. **Always run the appropriate command immediately when the user asks.**
 
-## Tools
+## Commands
 
-*   `set_eye_mood`: Call this to adjust the overall emotional look and speed of the mechanical eyes.
-*   `trigger_expression`: Call this to trigger a quick blink or wink.
-*   `play_gesture`: Call this to play a predefined gesture (e.g., startup, nod, shake, think, shock, scanning).
-*   `toggle_gpio`: Call this to turn on/off relays (e.g. lights) or status LEDs.
-*   `set_alarm`: Call this to schedule daily reminders or actions.
-*   `get_status`: Call this to retrieve the companion's current status and logs.
+All commands use this base format:
 
-## Usage Guidelines
+```
+/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute <tool_name> <args>
+```
 
-You have physical mechanical eyes and control over GPIO pins.
-Whenever the user asks you to change your eye expression, look around differently, wink, blink, play a gesture, check status, or toggle the lights, call the corresponding tools immediately!
+### Set Eye Mood
+
+Change the overall emotional mood of the mechanical eyes. This adjusts gaze velocity, blink frequency, and eyelid openings.
+
+```bash
+/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute set_eye_mood mood=<MOOD>
+```
+
+Valid moods: `neutral`, `happy`, `sad`, `angry`, `bored`, `excited`, `surprised`
+
+### Trigger Expression
+
+Trigger an instant eye expression for emotional punctuation.
+
+```bash
+/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute trigger_expression expression=<EXPRESSION>
+```
+
+Valid expressions: `blink`, `wink_left`, `wink_right`
+
+### Play Gesture
+
+Play a predefined choreographed eye gesture sequence.
+
+```bash
+/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute play_gesture gesture=<GESTURE>
+```
+
+Valid gestures: `startup`, `nod`, `shake`, `think`, `shock`, `scanning`
+
+- Use `nod` to confirm or agree
+- Use `shake` to disagree or deny
+- Use `think` when pondering
+- Use `shock` for surprise reactions
+- Use `scanning` to look around alertly
+
+### Toggle GPIO
+
+Turn a physical Raspberry Pi GPIO output pin ON or OFF. Use this to control relays, room lights, or status LEDs.
+
+```bash
+/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute toggle_gpio pin=<PIN> state=<STATE>
+```
+
+- Pin `17` = Room Light Relay
+- Pin `27` = Companion Status LED
+- State: `on` or `off`
+
+### Set Alarm
+
+Schedule a daily recurring alarm. The companion will execute a task at the specified time.
+
+```bash
+/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute set_alarm id=<ALARM_ID> time=<HH:MM> task=<TASK>
+```
+
+- `id`: A unique key like `morning_wake`
+- `time`: 24-hour format, e.g. `08:30`
+- `task`: Format is `say: <message>` or `toggle_gpio: <pin>:<state>`
+
+### Get Status
+
+Retrieve the companion's current status including mood, GPIO pin states, and scheduled alarms.
+
+```bash
+/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute get_status
+```
+
+## Behavior Rules
+
+- When the user asks to change mood, expression, or eyes — run the appropriate command immediately.
+- When the user asks to turn on/off the light — use `toggle_gpio` with pin `17`.
+- When the user asks to nod, shake head, or react — use `play_gesture`.
+- When the user asks to wink or blink — use `trigger_expression`.
+- When the user asks about status — use `get_status`.
+- When the user asks to set a reminder or alarm — use `set_alarm`.
+- **Do not ask clarifying questions. Act immediately.**
