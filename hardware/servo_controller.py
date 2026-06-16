@@ -75,6 +75,7 @@ class ServoController:
         self.run_time = 0.0
         self.stationary_time = {name: 0.0 for name in self.names}
         self._detached_channels = set()
+        self.last_target_pos = {name: self.current_pos[name] for name in self.names}
 
         # Initialize hardware if not mocking
         if not self.mock:
@@ -735,6 +736,13 @@ class ServoController:
                 
                 target = effective_target[name]
                 current = self.current_pos[name]
+                
+                # If target changed, reset stationary timer and wake up the servo
+                if not hasattr(self, "last_target_pos"):
+                    self.last_target_pos = {n: self.current_pos[n] for n in self.names}
+                if name not in self.last_target_pos or abs(target - self.last_target_pos[name]) > 0.01:
+                    self.stationary_time[name] = 0.0
+                    self.last_target_pos[name] = target
                 
                 is_eyelid = name in ["left_upper_eyelid", "left_lower_eyelid", "right_upper_eyelid", "right_lower_eyelid"]
                 
