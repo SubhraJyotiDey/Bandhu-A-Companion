@@ -76,6 +76,8 @@ class ServoController:
         self.stationary_time = {name: 0.0 for name in self.names}
         self._detached_channels = set()
         self.last_target_pos = {name: self.current_pos[name] for name in self.names}
+        self.velocities = {name: 0.0 for name in self.names}
+
 
         # Initialize hardware if not mocking
         if not self.mock:
@@ -483,9 +485,37 @@ class ServoController:
         except Exception:
             pass
 
+    def _solve_spring_damper(self, x, v, t, dt, w, zeta=1.0):
+        """Analytically solves a second-order spring-damper system for a time step dt.
+        Highly stable and smooth. Returns (new_position, new_velocity).
+        """
+        if w <= 0.0:
+            return t, 0.0
+            
+        if zeta >= 1.0:
+            # Critically damped (zeta == 1) or overdamped (zeta > 1)
+            # We use critically damped for zeta >= 1 for maximum smoothness
+            c = math.exp(-w * dt)
+            new_x = t + (x - t + (v + w * (x - t)) * dt) * c
+            new_v = (v - w * dt * (v + w * (x - t))) * c
+            return new_x, new_v
+        else:
+            # Underdamped (zeta < 1) - provides a slight elastic bounce / overshoot
+            wd = w * math.sqrt(1.0 - zeta * zeta)
+            g = zeta * w
+            c = math.exp(-g * dt)
+            s = math.sin(wd * dt)
+            co = math.cos(wd * dt)
+            
+            dx = x - t
+            new_x = t + c * (dx * co + (v + g * dx) / wd * s)
+            new_v = -g * (new_x - t) + c * (-dx * wd * s + (v + g * dx) * co)
+            return new_x, new_v
+
     # ------------------------------------------------------------------
     # MAIN CONTROL LOOP
     # ------------------------------------------------------------------
+
 
     def _control_loop(self):
         """Continuous background thread that smooths servo movements and handles
@@ -766,30 +796,38 @@ class ServoController:
                 
                 is_eyelid = name in ["left_upper_eyelid", "left_lower_eyelid", "right_upper_eyelid", "right_lower_eyelid"]
                 
-                # If a blink, wink, or flutter is active, eyelids bypass ease-out for instant motion
+                # If a blink, wink, or flutter is active, eyelids bypass spring-damper for exact curve reproduction
                 if (self.blink_active or self._flutter_active) and is_eyelid:
                     new_pos = target
+                    self.velocities[name] = 0.0
                 else:
-                    # Retrieve speed factor k
-                    k = self.speed_k.get(name, 2.0)
-                    if self.mood == "sad" or self.mood == "bored":
-                        k *= 0.6
-                    elif self.mood == "excited" or self.mood == "surprised":
-                        k *= 1.4
-                    
-                    # Calculate ease-out step
-                    factor = 1.0 - math.exp(-k * dt)
-                    step = (target - current) * factor
-                    
-                    # Clamp step to speed limit
-                    max_step = speed_limit * dt
-                    if self.mood == "sad" or self.mood == "bored":
-                        max_step *= 0.6
-                    elif self.mood == "excited" or self.mood == "surprised":
-                        max_step *= 1.3
-                        
-                    step_clamped = max(-max_step, min(max_step, step))
-                    new_pos = current + step_clamped
+                    # Determine omega (stiffness) and zeta (damping) based on channel and mood
+                    if is_eyelid:
+                        # Eyelids are slower and lag behind eyeballs (secondary motion)
+                        if self.mood == "sad" or self.mood == "bored":
+                            w = 3.5
+                            zeta = 1.1 # slightly overdamped, heavy lids
+                        elif self.mood == "excited" or self.mood == "surprised":
+                            w = 8.0
+                            zeta = 0.85 # slightly underdamped, springy/alert
+                        else:
+                            w = 6.0
+                            zeta = 1.0 # critically damped
+                    else:
+                        # Eyeballs (yaw/pitch) are faster and snappier
+                        if self.mood == "sad" or self.mood == "bored":
+                            w = 4.5
+                            zeta = 1.0 # critically damped, sluggish
+                        elif self.mood == "excited" or self.mood == "surprised":
+                            w = 11.0
+                            zeta = 0.82 # springy overshoot
+                        else:
+                            w = 8.5
+                            zeta = 1.0 # critically damped
+                            
+                    # Solve spring damper
+                    new_pos, new_vel = self._solve_spring_damper(current, self.velocities[name], target, dt, w, zeta)
+                    self.velocities[name] = new_vel
                 
                 # Clamp to absolute servo limits (safety calibration limits are applied to final output in _write_servo_angle)
                 new_pos = max(0.0, min(180.0, new_pos))
@@ -797,8 +835,10 @@ class ServoController:
                 # Snap to target if very close to prevent tiny float adjustments
                 if abs(target - new_pos) < 0.15:
                     new_pos = target
+                    self.velocities[name] = 0.0
                     
                 self.current_pos[name] = new_pos
+
                 
                 # Update stationary time and write/detach accordingly (always keep active during blink/flutter)
                 if (self.blink_active or self._flutter_active) and is_eyelid:
