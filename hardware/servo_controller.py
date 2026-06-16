@@ -40,6 +40,7 @@ class ServoController:
         # Flags
         self.is_running = False
         self.blink_active = False
+        self.blink_side = "both" # Can be "both", "left", or "right"
         self.blink_progress = 0.0 # 0.0 (open) to 1.0 (fully closed)
         self.manual_override = False # If true, manual controls from portal override everything
         self.face_tracking_active = False
@@ -226,6 +227,7 @@ class ServoController:
         """Triggers a coordinated blink sequence."""
         if not self.blink_active:
             self.blink_active = True
+            self.blink_side = "both"
             # Spawn a thread to handle the blink timing so it doesn't block the loop
             threading.Thread(target=self._blink_sequence_thread, daemon=True).start()
 
@@ -260,6 +262,7 @@ class ServoController:
         """Triggers a single-sided wink."""
         if not self.blink_active:
             self.blink_active = True
+            self.blink_side = side
             threading.Thread(target=self._wink_sequence_thread, args=(side,), daemon=True).start()
 
     def _wink_sequence_thread(self, side):
@@ -308,7 +311,11 @@ class ServoController:
         ru_open, rl_open = 60.0, 120.0
         
         # Adjust baselines depending on mood
-        if self.mood == "angry":
+        if self.mood == "happy":
+            # Smiling squinted eyes: slightly lowered upper lids, raised lower lids
+            lu_open, ll_open = 75.0, 105.0
+            ru_open, rl_open = 75.0, 105.0
+        elif self.mood == "angry":
             # Narrowed eyes: upper eyelids lower, lower lids raise
             lu_open, ll_open = 95.0, 95.0
             ru_open, rl_open = 95.0, 95.0
@@ -427,14 +434,16 @@ class ServoController:
                 ru_target = ru_base + (pitch_diff * gain_upper)
                 rl_target = rl_base + (pitch_diff * gain_lower)
                 
-                # Apply blink overrides
+                # Apply blink/wink overrides
                 if self.blink_active:
-                    # Blink closes both eyelids.
+                    # Blink/wink closes selected eyelids.
                     # Upper eyelids go to closed (~125), Lower eyelids go to closed (~80)
-                    lu_target = lu_target + (125.0 - lu_target) * self.blink_progress
-                    ll_target = ll_target + (80.0 - ll_target) * self.blink_progress
-                    ru_target = ru_target + (125.0 - ru_target) * self.blink_progress
-                    rl_target = rl_target + (80.0 - rl_target) * self.blink_progress
+                    if self.blink_side in ["both", "left"]:
+                        lu_target = lu_target + (125.0 - lu_target) * self.blink_progress
+                        ll_target = ll_target + (80.0 - ll_target) * self.blink_progress
+                    if self.blink_side in ["both", "right"]:
+                        ru_target = ru_target + (125.0 - ru_target) * self.blink_progress
+                        rl_target = rl_target + (80.0 - rl_target) * self.blink_progress
                 
                 effective_target["left_upper_eyelid"] = lu_target
                 effective_target["left_lower_eyelid"] = ll_target
@@ -451,30 +460,36 @@ class ServoController:
                 target = effective_target[name]
                 current = self.current_pos[name]
                 
-                # Retrieve speed factor k
-                k = self.speed_k.get(name, 5.0)
-                if self.mood == "sad" or self.mood == "bored":
-                    k *= 0.6
-                elif self.mood == "excited" or self.mood == "surprised":
-                    k *= 1.4
+                is_eyelid = name in ["left_upper_eyelid", "left_lower_eyelid", "right_upper_eyelid", "right_lower_eyelid"]
                 
-                # Calculate ease-out step
-                factor = 1.0 - math.exp(-k * dt)
-                step = (target - current) * factor
-                
-                # Clamp step to speed limit
-                max_step = speed_limit * dt
-                if self.mood == "sad" or self.mood == "bored":
-                    max_step *= 0.6
-                elif self.mood == "excited" or self.mood == "surprised":
-                    max_step *= 1.3
+                # If a blink or wink is active, eyelids bypass ease-out and speed limits for instant, crisp motion
+                if self.blink_active and is_eyelid:
+                    new_pos = target
+                else:
+                    # Retrieve speed factor k
+                    k = self.speed_k.get(name, 5.0)
+                    if self.mood == "sad" or self.mood == "bored":
+                        k *= 0.6
+                    elif self.mood == "excited" or self.mood == "surprised":
+                        k *= 1.4
                     
-                step_clamped = max(-max_step, min(max_step, step))
-                new_pos = current + step_clamped
+                    # Calculate ease-out step
+                    factor = 1.0 - math.exp(-k * dt)
+                    step = (target - current) * factor
+                    
+                    # Clamp step to speed limit
+                    max_step = speed_limit * dt
+                    if self.mood == "sad" or self.mood == "bored":
+                        max_step *= 0.6
+                    elif self.mood == "excited" or self.mood == "surprised":
+                        max_step *= 1.3
+                        
+                    step_clamped = max(-max_step, min(max_step, step))
+                    new_pos = current + step_clamped
                 
                 # Safety clamps from config parameters to prevent mechanical binding
-                min_lim = cfg.get("min_angle", 40.0) if name in ["left_upper_eyelid", "left_lower_eyelid", "right_upper_eyelid", "right_lower_eyelid"] else cfg.get("min_angle", 0.0)
-                max_lim = cfg.get("max_angle", 140.0) if name in ["left_upper_eyelid", "left_lower_eyelid", "right_upper_eyelid", "right_lower_eyelid"] else cfg.get("max_angle", 180.0)
+                min_lim = cfg.get("min_angle", 40.0) if is_eyelid else cfg.get("min_angle", 0.0)
+                max_lim = cfg.get("max_angle", 140.0) if is_eyelid else cfg.get("max_angle", 180.0)
                 min_lim = cfg.get("min_angle", min_lim)
                 max_lim = cfg.get("max_angle", max_lim)
                 
