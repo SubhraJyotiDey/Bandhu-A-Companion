@@ -148,13 +148,13 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
             
         srv = config["servos"][name]
         
-        if trim is not None:
+        if trim is not None and trim != "":
             srv["trim"] = float(trim)
-        if min_ang is not None:
+        if min_ang is not None and min_ang != "":
             srv["min_angle"] = float(min_ang)
-        if max_ang is not None:
+        if max_ang is not None and max_ang != "":
             srv["max_angle"] = float(max_ang)
-        if pin is not None:
+        if pin is not None and pin != "":
             srv["pin"] = int(pin)
             
         daemon.config_manager.save_config()

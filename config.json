@@ -7,7 +7,7 @@
   },
   "servos": {
     "yaw": {
-      "pin": 0,
+      "pin": 4,
       "min_angle": 50,
       "max_angle": 130,
       "center_angle": 90,
@@ -43,7 +43,7 @@
       "inverted": false
     },
     "right_upper_eyelid": {
-      "pin": 4,
+      "pin": 0,
       "min_angle": 40,
       "max_angle": 140,
       "center_angle": 90,

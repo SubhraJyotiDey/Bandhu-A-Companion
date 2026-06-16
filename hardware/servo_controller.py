@@ -228,13 +228,9 @@ class ServoController:
         print("[Servo] Background control loop stopped.")
 
     def set_target(self, name, angle):
-        """Exposed method to set individual targets."""
+        """Exposed method to set individual targets clamped to absolute servo limits."""
         if name in self.target_pos:
-            cfg = self.servo_cfgs.get(name, {})
-            # Clamp request to min/max safety limits
-            min_lim = cfg.get("min_angle", 0)
-            max_lim = cfg.get("max_angle", 180)
-            self.target_pos[name] = max(min_lim, min(max_lim, float(angle)))
+            self.target_pos[name] = max(0.0, min(180.0, float(angle)))
 
     # ------------------------------------------------------------------
     # BLINK & WINK SYSTEM
@@ -721,10 +717,8 @@ class ServoController:
                     step_clamped = max(-max_step, min(max_step, step))
                     new_pos = current + step_clamped
                 
-                # Safety clamps from config
-                min_lim = cfg.get("min_angle", 40.0 if is_eyelid else 0.0)
-                max_lim = cfg.get("max_angle", 140.0 if is_eyelid else 180.0)
-                new_pos = max(min_lim, min(max_lim, new_pos))
+                # Clamp to absolute servo limits (safety calibration limits are applied to final output in _write_servo_angle)
+                new_pos = max(0.0, min(180.0, new_pos))
                 
                 # Snap to target if very close to prevent tiny float adjustments
                 if abs(target - new_pos) < 0.15:
@@ -732,6 +726,7 @@ class ServoController:
                     
                 self.current_pos[name] = new_pos
                 self._write_servo_angle(name, new_pos)
+                time.sleep(0.002) # Stagger writes to minimize power rail sag and servo noise
                 
             time.sleep(0.01) # ~100Hz control loop
 
