@@ -31,7 +31,7 @@
       "center_angle": 90,
       "trim": 0,
       "speed_limit": 180,
-      "inverted": false
+      "inverted": true
     },
     "left_lower_eyelid": {
       "pin": 3,
@@ -40,7 +40,7 @@
       "center_angle": 90,
       "trim": 0,
       "speed_limit": 180,
-      "inverted": false
+      "inverted": true
     },
     "right_upper_eyelid": {
       "pin": 0,
@@ -49,7 +49,7 @@
       "center_angle": 90,
       "trim": 0,
       "speed_limit": 180,
-      "inverted": true
+      "inverted": false
     },
     "right_lower_eyelid": {
       "pin": 5,
@@ -58,7 +58,7 @@
       "center_angle": 90,
       "trim": 0,
       "speed_limit": 180,
-      "inverted": true
+      "inverted": false
     }
   },
   "gpios": [
