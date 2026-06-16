@@ -765,23 +765,20 @@ class ServoController:
                     if roll < 0.60:
                         # 60% — Micro-glance: small adjustment near current position
                         drift_type = "small"
-                        drift_yaw = drift_start_yaw + random.uniform(-3.0, 3.0)
-                        drift_pitch = drift_start_pitch + random.uniform(-1.5, 1.5)
-                        drift_duration = random.uniform(2.0, 3.5)
+                        drift_yaw = drift_start_yaw + random.uniform(-4.0, 4.0)
+                        drift_pitch = drift_start_pitch + random.uniform(-2.5, 2.5)
                     elif roll < 0.85:
                         # 25% — Medium shift: purposeful look
                         drift_type = "medium"
-                        gaze_range = 8.0 * self.extroversion
+                        gaze_range = 10.0 * self.extroversion
                         drift_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
-                        drift_pitch = 90.0 + random.uniform(-gaze_range / 3.0, gaze_range / 4.0)
-                        drift_duration = random.uniform(2.5, 4.5)
+                        drift_pitch = 90.0 + random.uniform(-gaze_range / 2.5, gaze_range / 3.5)
                     else:
                         # 15% — Large attention shift
                         drift_type = "large"
-                        gaze_range = 15.0 * self.extroversion
+                        gaze_range = 18.0 * self.extroversion
                         drift_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
-                        drift_pitch = 90.0 + random.uniform(-5.0, 3.0)
-                        drift_duration = random.uniform(2.0, 3.5)
+                        drift_pitch = 90.0 + random.uniform(-6.0, 4.0)
                     
                     # Clamp drift targets to safe ranges
                     yaw_cfg = self.servo_cfgs.get("yaw", {})
@@ -795,28 +792,28 @@ class ServoController:
                     elif self.mood == "bored":
                         drift_pitch = min(drift_pitch + 5.0, pitch_cfg.get("max_angle", 120))  # Slight droop
                     
-                    drift_elapsed = 0.0
+                    # Snap target instantly
+                    self.target_pos["yaw"] = drift_yaw
+                    self.target_pos["pitch"] = drift_pitch
+                    
+                    # Extroversion scaling factor: higher extroversion -> shorter hold times (active)
+                    hold_multiplier = 1.0 / max(0.2, self.extroversion)
                     
                     # Set next drift timer based on shift type and personality
                     if drift_type == "large":
-                        # After a large shift, hold longer then blink
-                        drift_interval = random.uniform(8.0, 15.0)
-                        self.trigger_blink()
+                        drift_interval = random.uniform(1.2, 2.5) * hold_multiplier
+                        # 40% chance of saccadic blink
+                        if random.random() < 0.40:
+                            self.trigger_blink()
                     elif drift_type == "medium":
-                        drift_interval = random.uniform(7.0, 14.0) if self.extroversion > 0.5 else random.uniform(10.0, 20.0)
+                        drift_interval = random.uniform(0.7, 1.5) * hold_multiplier
+                        # 20% chance of saccadic blink
+                        if random.random() < 0.20:
+                            self.trigger_blink()
                     else:
-                        drift_interval = random.uniform(6.0, 10.0) if self.extroversion > 0.5 else random.uniform(9.0, 16.0)
+                        drift_interval = random.uniform(0.3, 0.8) * hold_multiplier
                     
                     drift_timer = now + drift_interval
-                
-                # Perform smooth cosine interpolation for the gaze target
-                if drift_elapsed < drift_duration and not self._curiosity_active:
-                    drift_elapsed += dt
-                    t = min(1.0, drift_elapsed / drift_duration)
-                    # Cosine ease-in-out curve
-                    factor = (1.0 - math.cos(t * math.pi)) / 2.0
-                    self.target_pos["yaw"] = drift_start_yaw + (drift_yaw - drift_start_yaw) * factor
-                    self.target_pos["pitch"] = drift_start_pitch + (drift_pitch - drift_start_pitch) * factor
 
             # ----------------------------------------------------------
             # Create effective target (add micro-saccades when idle)
@@ -847,8 +844,8 @@ class ServoController:
                 
                 # Apply Pitch-tracking to eyelids (highly realistic animatronic effect!)
                 pitch_diff = self.current_pos["pitch"] - 90.0
-                gain_upper = 0.5
-                gain_lower = 0.3
+                gain_upper = 0.75
+                gain_lower = 0.35
                 
                 lu_target = lu_base + (pitch_diff * gain_upper)
                 ll_target = ll_base + (pitch_diff * gain_lower)
@@ -955,13 +952,13 @@ class ServoController:
                         # Eyeballs (yaw/pitch) are faster and snappier
                         if self.mood == "sad" or self.mood == "bored":
                             w = 4.5
-                            zeta = 1.0 # critically damped, sluggish
+                            zeta = 1.05 # slightly overdamped, heavy/sluggish
                         elif self.mood == "excited" or self.mood == "surprised":
-                            w = 11.0
-                            zeta = 0.82 # springy overshoot
+                            w = 12.0
+                            zeta = 0.80 # springy overshoot, very alert
                         else:
-                            w = 8.5
-                            zeta = 1.0 # critically damped
+                            w = 9.5
+                            zeta = 0.88 # slightly underdamped, premium organic bounce!
                             
                     # Solve spring damper
                     new_pos, new_vel = self._solve_spring_damper(current, self.velocities[name], target, dt, w, zeta)
