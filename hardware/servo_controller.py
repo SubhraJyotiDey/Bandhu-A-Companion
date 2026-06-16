@@ -678,11 +678,7 @@ class ServoController:
                 lu_base, ll_base, ru_base, rl_base = self._get_eyelid_baselines()
                 
                 # Apply Pitch-tracking to eyelids (highly realistic animatronic effect!)
-                # Looking UP (current pitch < 90) raises upper eyelids.
-                # Looking DOWN (current pitch > 90) droops upper eyelids and raises lower eyelids.
                 pitch_diff = self.current_pos["pitch"] - 90.0
-                
-                # Eyelid tracking gain
                 gain_upper = 0.5
                 gain_lower = 0.3
                 
@@ -706,7 +702,6 @@ class ServoController:
                 
                 # Apply blink/wink overrides (takes priority over flutter)
                 if self.blink_active:
-                    # Upper eyelids go to closed (~125), Lower eyelids go to closed (~80)
                     if self.blink_side in ["both", "left"]:
                         lu_target = lu_target + (125.0 - lu_target) * self.blink_progress
                         ll_target = ll_target + (80.0 - ll_target) * self.blink_progress
@@ -716,12 +711,37 @@ class ServoController:
                 
                 # Curiosity perk-up: widen eyes briefly during snap phase
                 if self._curiosity_active and self._curiosity_phase == 0:
-                    # Briefly widen eyes (surprised-like baseline)
                     lu_target = min(lu_target, 48.0)
                     ru_target = min(ru_target, 48.0)
                     ll_target = max(ll_target, 132.0)
                     rl_target = max(rl_target, 132.0)
                 
+                effective_target["left_upper_eyelid"] = lu_target
+                effective_target["left_lower_eyelid"] = ll_target
+                effective_target["right_upper_eyelid"] = ru_target
+                effective_target["right_lower_eyelid"] = rl_target
+            else:
+                # Apply blink and flutter overrides even in manual override mode
+                lu_target = effective_target["left_upper_eyelid"]
+                ll_target = effective_target["left_lower_eyelid"]
+                ru_target = effective_target["right_upper_eyelid"]
+                rl_target = effective_target["right_lower_eyelid"]
+                
+                if self._flutter_active:
+                    flutter_close = self._flutter_progress
+                    lu_target = lu_target + (115.0 - lu_target) * flutter_close
+                    ll_target = ll_target + (85.0 - ll_target) * flutter_close
+                    ru_target = ru_target + (115.0 - ru_target) * flutter_close
+                    rl_target = rl_target + (85.0 - rl_target) * flutter_close
+                
+                if self.blink_active:
+                    if self.blink_side in ["both", "left"]:
+                        lu_target = lu_target + (125.0 - lu_target) * self.blink_progress
+                        ll_target = ll_target + (80.0 - ll_target) * self.blink_progress
+                    if self.blink_side in ["both", "right"]:
+                        ru_target = ru_target + (125.0 - ru_target) * self.blink_progress
+                        rl_target = rl_target + (80.0 - rl_target) * self.blink_progress
+                        
                 effective_target["left_upper_eyelid"] = lu_target
                 effective_target["left_lower_eyelid"] = ll_target
                 effective_target["right_upper_eyelid"] = ru_target
@@ -780,8 +800,10 @@ class ServoController:
                     
                 self.current_pos[name] = new_pos
                 
-                # Update stationary time and write/detach accordingly
-                if abs(target - new_pos) < 0.15:
+                # Update stationary time and write/detach accordingly (always keep active during blink/flutter)
+                if (self.blink_active or self._flutter_active) and is_eyelid:
+                    self.stationary_time[name] = 0.0
+                elif abs(target - new_pos) < 0.15:
                     self.stationary_time[name] += dt
                 else:
                     self.stationary_time[name] = 0.0

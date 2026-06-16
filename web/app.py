@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import threading
+import json
 from flask import Flask, render_template, jsonify, request
 
 def run_web_portal(daemon, host="0.0.0.0", port=5000):
@@ -105,6 +106,7 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
             mood = str(data["mood"]).lower()
             if mood in ["neutral", "happy", "sad", "angry", "bored", "excited", "surprised"]:
                 daemon.servos.mood = mood
+                daemon.servos.manual_override = False
                 config["personality"]["mood"] = mood
                 daemon.log(f"[Portal] Mood manually set to: {mood}")
                 

@@ -688,6 +688,13 @@
                         <button class="btn btn-pink" onclick="triggerExpression('wink_left')">Wink L</button>
                         <button class="btn btn-pink" onclick="triggerExpression('wink_right')">Wink R</button>
                     </div>
+                    <div style="width: 100%; display: flex; flex-direction: column; gap: 5px; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary);">
+                            <span>Extroversion (Gaze Activity)</span>
+                            <span id="label-extroversion">70%</span>
+                        </div>
+                        <input type="range" id="slider-extroversion" min="0" max="100" value="70" oninput="updateExtroversion(this.value)" style="width: 100%; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.1); outline: none; -webkit-appearance: none; cursor: pointer;">
+                    </div>
                 </div>
 
                 <div class="panel-title">Scheduler Alarms</div>
@@ -804,6 +811,16 @@
             }
             glowL.style.background = glow;
             glowR.style.background = glow;
+
+            // Update Extroversion slider
+            if (data.servo && data.servo.extroversion !== undefined) {
+                const extVal = Math.round(data.servo.extroversion * 100);
+                const extSlider = document.getElementById("slider-extroversion");
+                if (extSlider && document.activeElement.id !== "slider-extroversion") {
+                    extSlider.value = extVal;
+                    document.getElementById("label-extroversion").innerText = `${extVal}%`;
+                }
+            }
 
             // Manual Mode Lock badges
             manualOverride = data.servo.manual_override;
@@ -1108,6 +1125,17 @@
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
                 body: JSON.stringify({mood: mood})
+            });
+        }
+
+        // Extroversion setter
+        function updateExtroversion(val) {
+            const pct = val / 100.0;
+            document.getElementById("label-extroversion").innerText = `${val}%`;
+            fetch("/api/settings", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({extroversion: pct})
             });
         }
 
