@@ -28,7 +28,10 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 "face_detected": daemon.sensor.face_detected,
                 "primary_face": daemon.sensor.get_primary_face(),
                 "faces_count": len(daemon.sensor.faces),
-                "mock": daemon.sensor.mock
+                "mock": daemon.sensor.mock,
+                "enabled": daemon.config_manager.config.get("face_tracking", {}).get("enabled", True),
+                "invert_x": daemon.config_manager.config.get("face_tracking", {}).get("invert_x", False),
+                "invert_y": daemon.config_manager.config.get("face_tracking", {}).get("invert_y", False)
             },
             "gpios": daemon.gpio.get_pins_status(),
             "voice": {

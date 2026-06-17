@@ -737,6 +737,62 @@
                 <button class="btn" onclick="clearMockFace()" style="font-size:11px; padding: 4px 8px; width: 100%">Clear Face Mock</button>
             </div>
 
+            <!-- Face Tracking & Sensor Control Panel -->
+            <div class="diagnostic-panel" style="display:flex; flex-direction:column; gap:12px; margin-top:15px; border-top:1px solid rgba(255,255,255,0.05); padding-top:15px; width:100%">
+                <div class="panel-title" style="width:100%; border:none; padding:0; margin-bottom:5px">
+                    Tracking & Sensor Settings
+                </div>
+                
+                <!-- Connection & Detection Status -->
+                <div style="background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.05); border-radius:8px; padding:10px; font-size:12px; display:flex; flex-direction:column; gap:6px">
+                    <div style="display:flex; justify-content:space-between; align-items:center">
+                        <span style="color:var(--text-secondary)">Sensor Connection:</span>
+                        <span id="sensor-conn-status" style="font-weight:600; color:var(--accent-pink)">Checking...</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center">
+                        <span style="color:var(--text-secondary)">Faces Detected:</span>
+                        <span id="sensor-face-status" style="font-weight:600; color:var(--text-primary)">0</span>
+                    </div>
+                    <div id="sensor-coords-row" style="display:none; justify-content:space-between; align-items:center">
+                        <span style="color:var(--text-secondary)">Face Coordinates:</span>
+                        <span id="sensor-coords-val" style="font-family:'Share Tech Mono',monospace; color:var(--accent-cyan)">-</span>
+                    </div>
+                </div>
+
+                <!-- Control Toggles -->
+                <div style="display:flex; flex-direction:column; gap:10px; font-size:13px">
+                    <!-- Global Mock Toggle -->
+                    <label style="display:flex; justify-content:space-between; align-items:center; cursor:pointer">
+                        <span>Global Mock Mode</span>
+                        <input type="checkbox" id="toggle-global-mock" onchange="setGlobalMock(this.checked)" style="accent-color:var(--accent-pink); width:16px; height:16px; cursor:pointer">
+                    </label>
+                    
+                    <!-- Face Tracking Toggle -->
+                    <label style="display:flex; justify-content:space-between; align-items:center; cursor:pointer">
+                        <span>Face Tracking Active</span>
+                        <input type="checkbox" id="toggle-face-tracking" onchange="setFaceTrackingEnabled(this.checked)" style="accent-color:var(--accent-cyan); width:16px; height:16px; cursor:pointer">
+                    </label>
+
+                    <!-- Axis Inversions -->
+                    <div style="display:flex; gap:15px; margin-top:4px">
+                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; flex:1">
+                            <input type="checkbox" id="toggle-invert-x" onchange="setAxisInversion()" style="accent-color:var(--accent-cyan); width:14px; height:14px; cursor:pointer">
+                            <span style="font-size:12px; color:var(--text-secondary)">Invert X (Yaw)</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; flex:1">
+                            <input type="checkbox" id="toggle-invert-y" onchange="setAxisInversion()" style="accent-color:var(--accent-cyan); width:14px; height:14px; cursor:pointer">
+                            <span style="font-size:12px; color:var(--text-secondary)">Invert Y (Pitch)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Servo Command Feedback -->
+                <div style="display:flex; gap:10px; margin-top:2px; font-size:11px; color:var(--text-secondary); background:rgba(255,255,255,0.02); border-radius:6px; padding:6px 10px; justify-content:space-around">
+                    <div>Yaw Target: <span id="feedback-yaw" style="font-family:'Share Tech Mono',monospace; color:#fff; font-weight:600">-</span></div>
+                    <div>Pitch Target: <span id="feedback-pitch" style="font-family:'Share Tech Mono',monospace; color:#fff; font-weight:600">-</span></div>
+                </div>
+            </div>
+
             <div class="panel-title" style="margin-top:10px">GPIO Pin Modules</div>
             <div class="gpio-grid" id="gpios-container">
                 <!-- Dynamically filled -->
@@ -931,6 +987,70 @@
             } else {
                 document.getElementById("btn-release").style.display = "none";
                 document.getElementById("btn-lock").style.display = "inline-flex";
+            }
+
+            // Update sensor and tracking diagnostic panel
+            if (data.sensor) {
+                const connStatus = document.getElementById("sensor-conn-status");
+                const faceStatus = document.getElementById("sensor-face-status");
+                const coordsRow = document.getElementById("sensor-coords-row");
+                const coordsVal = document.getElementById("sensor-coords-val");
+                
+                if (connStatus) {
+                    if (data.sensor.mock) {
+                        if (data.servo && !data.servo.mock) {
+                            connStatus.innerText = "I2C ERROR (MOCK FALLBACK)";
+                            connStatus.style.color = "var(--accent-pink)";
+                        } else {
+                            connStatus.innerText = "MOCK MODE ACTIVE";
+                            connStatus.style.color = "var(--text-secondary)";
+                        }
+                    } else {
+                        connStatus.innerText = "CONNECTED (I2C 0x62)";
+                        connStatus.style.color = "#22c55e";
+                    }
+                }
+                
+                if (faceStatus) {
+                    faceStatus.innerText = data.sensor.faces_count;
+                    faceStatus.style.color = data.sensor.faces_count > 0 ? "var(--accent-cyan)" : "var(--text-secondary)";
+                }
+                
+                if (coordsRow && coordsVal) {
+                    if (data.sensor.face_detected && data.sensor.primary_face) {
+                        const pf = data.sensor.primary_face;
+                        coordsVal.innerText = `X: ${Math.round(pf.x)}, Y: ${Math.round(pf.y)}`;
+                        coordsRow.style.display = "flex";
+                    } else {
+                        coordsRow.style.display = "none";
+                    }
+                }
+                
+                // Update checkboxes (if not currently focused by user)
+                const mockChk = document.getElementById("toggle-global-mock");
+                if (mockChk && document.activeElement !== mockChk) {
+                    mockChk.checked = data.sensor.mock;
+                }
+                const ftChk = document.getElementById("toggle-face-tracking");
+                if (ftChk && document.activeElement !== ftChk) {
+                    ftChk.checked = data.sensor.enabled;
+                }
+                const invXChk = document.getElementById("toggle-invert-x");
+                if (invXChk && document.activeElement !== invXChk) {
+                    invXChk.checked = data.sensor.invert_x;
+                }
+                const invYChk = document.getElementById("toggle-invert-y");
+                if (invYChk && document.activeElement !== invYChk) {
+                    invYChk.checked = data.sensor.invert_y;
+                }
+            }
+            
+            // Update servo feedback targets
+            if (data.servo && data.servo.target && data.servo.current) {
+                const fbYaw = document.getElementById("feedback-yaw");
+                const fbPitch = document.getElementById("feedback-pitch");
+                if (fbYaw) fbYaw.innerText = `${Math.round(data.servo.target.yaw)}° (current: ${Math.round(data.servo.current.yaw)}°)`;
+                if (fbPitch) fbPitch.innerText = `${Math.round(data.servo.target.pitch)}° (current: ${Math.round(data.servo.current.pitch)}°)`;
             }
         }
 
@@ -1144,7 +1264,45 @@
                         if (maxEl) maxEl.value = cfg.max_angle !== undefined ? cfg.max_angle : 140;
                         if (pinEl) pinEl.value = cfg.pin !== undefined ? cfg.pin : 0;
                     });
+
+                    // Set checkboxes from config
+                    const ftCfg = data.face_tracking || {};
+                    const mockChk = document.getElementById("toggle-global-mock");
+                    const ftChk = document.getElementById("toggle-face-tracking");
+                    const invXChk = document.getElementById("toggle-invert-x");
+                    const invYChk = document.getElementById("toggle-invert-y");
+                    
+                    if (mockChk) mockChk.checked = data.mock !== undefined ? data.mock : true;
+                    if (ftChk) ftChk.checked = ftCfg.enabled !== undefined ? ftCfg.enabled : true;
+                    if (invXChk) invXChk.checked = ftCfg.invert_x !== undefined ? ftCfg.invert_x : false;
+                    if (invYChk) invYChk.checked = ftCfg.invert_y !== undefined ? ftCfg.invert_y : false;
                 });
+        }
+
+        function setGlobalMock(checked) {
+            fetch("/api/settings", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({mock: checked})
+            });
+        }
+
+        function setFaceTrackingEnabled(checked) {
+            fetch("/api/settings", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({face_tracking_enabled: checked})
+            });
+        }
+
+        function setAxisInversion() {
+            const invertX = document.getElementById("toggle-invert-x").checked;
+            const invertY = document.getElementById("toggle-invert-y").checked;
+            fetch("/api/settings", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({invert_x: invertX, invert_y: invertY})
+            });
         }
 
         function onManualSliderMove(name, val) {
