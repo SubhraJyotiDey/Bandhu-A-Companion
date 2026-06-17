@@ -26,7 +26,7 @@
     },
     "left_upper_eyelid": {
       "pin": 2,
-      "min_angle": 40,
+      "min_angle": 69.7,
       "max_angle": 140,
       "center_angle": 90,
       "trim": 0,
@@ -109,6 +109,6 @@
   ],
   "personality": {
     "extroversion": 0.7,
-    "mood": "neutral"
+    "mood": "happy"
   }
 }
