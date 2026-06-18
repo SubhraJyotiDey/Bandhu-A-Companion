@@ -246,6 +246,10 @@ class CompanionDaemon:
         self.stt = STTManager(self.config_manager)
         self.brain = ZeroClawClient(self.config_manager)
         self.brain.daemon = self
+        from hardware.crt_engine import VectorCrtEngine
+        self.crt_engine = VectorCrtEngine(self.config_manager)
+        self.crt_engine.daemon = self
+        self.stt.crt_engine = self.crt_engine
         self.games = CompanionGames(self.tts, self.servos)
         self.active_game = None
         
@@ -350,6 +354,10 @@ class CompanionDaemon:
         self.scheduler_thread.daemon = True
         self.scheduler_thread.start()
         
+        # Start CRT deflection engine
+        if hasattr(self, "crt_engine") and self.crt_engine:
+            self.crt_engine.start()
+        
         # Check initial sleep mode state
         sleep_cfg = self.config_manager.config.get("sleep_mode", {})
         if sleep_cfg.get("enabled", False):
@@ -360,9 +368,11 @@ class CompanionDaemon:
                 self.servos.close_eyes()
                 self.log("[Sleep Mode] Daemon started during sleep hours. Entering sleep mode.")
         
-        # Trigger Startup eye gesture
+        # Trigger Startup eye gesture and CRT startup animation
         if not self.sleep_active:
             self.servos.play_gesture("startup")
+            if hasattr(self, "crt_engine") and self.crt_engine:
+                self.crt_engine.set_mode("startup")
         
         self.log("[Daemon] Companion Daemon successfully started in background.")
 
@@ -374,6 +384,8 @@ class CompanionDaemon:
         self.servos.stop()
         self.sensor.stop()
         self.wake_detector.stop()
+        if hasattr(self, "crt_engine") and self.crt_engine:
+            self.crt_engine.stop()
         
         # Close TP1 pin
         if self.tp1_pin:
@@ -732,6 +744,19 @@ class CompanionDaemon:
         elif mood_tag in ["happy", "sad", "angry", "surprised", "bored", "excited", "neutral"]:
             self.servos.mood = mood_tag
             self.log(f"[Voice] Eye expression set to: {mood_tag}")
+            
+        # Parse CRT vector drawing tags
+        show_text_match = re.search(r'\[show_text:\s*([^\]]+)\]', agent_reply)
+        if show_text_match:
+            text = show_text_match.group(1).strip()
+            if hasattr(self, "crt_engine") and self.crt_engine:
+                self.crt_engine.draw_momentary_text(text)
+                
+        show_shape_match = re.search(r'\[show_shape:\s*(\w+)\]', agent_reply)
+        if show_shape_match:
+            shape = show_shape_match.group(1).strip()
+            if hasattr(self, "crt_engine") and self.crt_engine:
+                self.crt_engine.draw_momentary_shape(shape)
 
     def _voice_interaction_flow(self):
         """Orchestrates continuous conversation session (Gemini Live style)."""
@@ -765,6 +790,8 @@ class CompanionDaemon:
                 
             # 2. Listen to user response
             self.log("[Voice] Listening to user...")
+            if hasattr(self, "crt_engine") and self.crt_engine:
+                self.crt_engine.set_mode("stt_waveform")
             
             # Temporarily pause wake-word detector to prevent mic conflicts on Raspberry Pi
             self.wake_detector.pause()
@@ -803,6 +830,8 @@ class CompanionDaemon:
                 break
                 
             self.log(f"[Voice] User spoke: \"{user_speech}\"")
+            if hasattr(self, "crt_engine") and self.crt_engine:
+                self.crt_engine.set_mode("idle")
             self.servos.mood = "excited"
             
             # Start pre-emptive voice filler and gesture to mask LLM/TTS generation latency
@@ -837,10 +866,14 @@ class CompanionDaemon:
                     continue
             
             # 4. Speak reply back to user
+            if hasattr(self, "crt_engine") and self.crt_engine:
+                self.crt_engine.set_mode("tts_mouth")
             self.tts.speak(agent_reply, lang)
             
             # Wait for speaking to finish, allowing interrupt
             interrupted = self._wait_for_tts_interrupt()
+            if hasattr(self, "crt_engine") and self.crt_engine:
+                self.crt_engine.set_mode("idle")
             
         self.servos.mood = "neutral"
         with self.voice_flow_lock:

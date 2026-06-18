@@ -130,6 +130,11 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 "active_game": daemon.games.active_game,
                 "score": daemon.games.score,
                 "round": daemon.games.round_num
+            },
+            "crt": {
+                "enabled": hasattr(daemon, "crt_engine") and daemon.crt_engine is not None,
+                "current_mode": daemon.crt_engine.current_mode if hasattr(daemon, "crt_engine") and daemon.crt_engine else "disabled",
+                "is_running": daemon.crt_engine.is_running if hasattr(daemon, "crt_engine") and daemon.crt_engine else False
             }
         }
         return jsonify(status)
@@ -835,6 +840,22 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 daemon.active_game = daemon.games.active_game
                 return jsonify({"success": True, "message": prompt})
                 
+            elif tool == "crt_draw_shape":
+                shape = args.get("shape")
+                duration = float(args.get("duration", 4.0))
+                if hasattr(daemon, "crt_engine") and daemon.crt_engine:
+                    daemon.crt_engine.draw_momentary_shape(shape, duration)
+                    return jsonify({"success": True, "message": f"Successfully drawing momentary shape '{shape}' on CRT for {duration} seconds."})
+                return jsonify({"success": False, "error": "CRT Engine not initialized."})
+
+            elif tool == "crt_draw_text":
+                text = args.get("text")
+                duration = float(args.get("duration", 4.0))
+                if hasattr(daemon, "crt_engine") and daemon.crt_engine:
+                    daemon.crt_engine.draw_momentary_text(text, duration)
+                    return jsonify({"success": True, "message": f"Successfully drawing momentary text '{text}' on CRT for {duration} seconds."})
+                return jsonify({"success": False, "error": "CRT Engine not initialized."})
+                
         except Exception as ex:
             return jsonify({"success": False, "error": f"Exception in tool execution: {ex}"})
             
@@ -917,6 +938,48 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                     result["contents"][md_path] = f"error: {e}"
                     
         return jsonify(result)
+
+    @app.route("/api/crt/mode", methods=["POST"])
+    def crt_set_mode():
+        data = request.json or {}
+        mode = data.get("mode")
+        if not mode:
+            return jsonify({"success": False, "error": "Missing mode"}), 400
+        if hasattr(daemon, "crt_engine") and daemon.crt_engine:
+            daemon.crt_engine.set_mode(mode)
+            daemon.log(f"[Portal] CRT mode set to: {mode}")
+            return jsonify({"success": True, "mode": mode})
+        return jsonify({"success": False, "error": "CRT engine not initialized"}), 500
+
+    @app.route("/api/crt/draw", methods=["POST"])
+    def crt_draw():
+        data = request.json or {}
+        text = data.get("text")
+        shape = data.get("shape")
+        duration = float(data.get("duration", 4.0))
+        
+        if hasattr(daemon, "crt_engine") and daemon.crt_engine:
+            if text:
+                daemon.crt_engine.draw_momentary_text(text, duration)
+                daemon.log(f"[Portal] CRT drawing momentary text: '{text}' for {duration}s")
+                return jsonify({"success": True, "type": "text", "value": text})
+            elif shape:
+                daemon.crt_engine.draw_momentary_shape(shape, duration)
+                daemon.log(f"[Portal] CRT drawing momentary shape: '{shape}' for {duration}s")
+                return jsonify({"success": True, "type": "shape", "value": shape})
+            return jsonify({"success": False, "error": "Must specify either text or shape"}), 400
+        return jsonify({"success": False, "error": "CRT engine not initialized"}), 500
+
+    @app.route("/api/crt/status", methods=["GET"])
+    def crt_status():
+        if hasattr(daemon, "crt_engine") and daemon.crt_engine:
+            return jsonify({
+                "success": True,
+                "current_mode": daemon.crt_engine.current_mode,
+                "is_running": daemon.crt_engine.is_running,
+                "temp_end_time": daemon.crt_engine.temp_end_time
+            })
+        return jsonify({"success": False, "error": "CRT engine not initialized"}), 500
 
     # Run the web server in a separate thread so it doesn't block the caller
     web_thread = threading.Thread(

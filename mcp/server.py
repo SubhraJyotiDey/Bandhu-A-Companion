@@ -195,6 +195,43 @@ def handle_request(req):
                             },
                             "required": ["user_input"]
                         }
+                    },
+                    {
+                        "name": "crt_draw_shape",
+                        "description": "Momentarily draw a vector shape (cube, pyramid, circle, spiral, lissajous) on the physical CRT monitor deflection coils.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "shape": {
+                                    "type": "string",
+                                    "enum": ["cube", "pyramid", "circle", "spiral", "lissajous"],
+                                    "description": "The vector shape to render."
+                                },
+                                "duration": {
+                                    "type": "number",
+                                    "description": "Display duration in seconds (default is 4.0)."
+                                }
+                            },
+                            "required": ["shape"]
+                        }
+                    },
+                    {
+                        "name": "crt_draw_text",
+                        "description": "Momentarily draw uppercase alphanumeric vector text on the physical CRT monitor deflection coils.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "text": {
+                                    "type": "string",
+                                    "description": "The text message to spell out in vector stroke lines."
+                                },
+                                "duration": {
+                                    "type": "number",
+                                    "description": "Display duration in seconds (default is 4.0)."
+                                }
+                            },
+                            "required": ["text"]
+                        }
                     }
                 ]
             }

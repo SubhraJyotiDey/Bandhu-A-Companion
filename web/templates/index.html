@@ -888,6 +888,57 @@
                 </div>
             </div>
 
+            <!-- VECTOR CRT MONITOR PANEL -->
+            <div class="panel" id="panel-crt">
+                <div class="panel-title">
+                    Vector CRT Monitor
+                    <span class="badge" id="badge-crt-status" style="padding: 2px 8px; font-size: 9px;"><div class="dot"></div> INACTIVE</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <!-- Mode Status -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+                        <span style="color: var(--text-secondary);">Current Display Mode:</span>
+                        <span id="crt-current-mode-label" style="font-weight: 600; color: var(--accent-cyan); text-transform: uppercase;">Idle</span>
+                    </div>
+
+                    <!-- Set Mode Dropdown -->
+                    <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 5px;">
+                        <span style="font-size: 11px; color: var(--text-secondary);">SET CRT DISPLAY MODE</span>
+                        <select id="select-crt-mode" onchange="setCrtMode(this.value)" style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; padding: 6px 10px; font-size: 12px; outline: none; cursor: pointer;">
+                            <option value="idle">Idle Loop (Auto-cycle Shapes)</option>
+                            <option value="stt_waveform">STT Voice Waveform</option>
+                            <option value="tts_waveform">TTS Output Waveform</option>
+                            <option value="tts_mouth">TTS Lip-Sync Mouth</option>
+                            <option value="startup">Retro Boot Sequence</option>
+                        </select>
+                    </div>
+
+                    <!-- Draw Momentary Text -->
+                    <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
+                        <span style="font-size: 11px; color: var(--text-secondary);">DRAW MOMENTARY TEXT (STROKE)</span>
+                        <div style="display: flex; gap: 6px;">
+                            <input type="text" id="crt-draw-text-input" placeholder="Type text to display..." style="flex-grow: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; padding: 6px 10px; font-size: 12px; outline: none;">
+                            <button class="btn btn-cyan" onclick="drawCrtText()" style="padding: 6px 12px; font-size: 11px;">Draw</button>
+                        </div>
+                    </div>
+
+                    <!-- Draw Momentary Shape -->
+                    <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
+                        <span style="font-size: 11px; color: var(--text-secondary);">DRAW MOMENTARY SHAPE</span>
+                        <div style="display: flex; gap: 6px;">
+                            <select id="select-crt-shape" style="flex-grow: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; padding: 6px 10px; font-size: 12px; outline: none; cursor: pointer;">
+                                <option value="cube">Spinning 3D Cube</option>
+                                <option value="pyramid">Spinning 3D Pyramid</option>
+                                <option value="circle">Parametric Circle</option>
+                                <option value="spiral">Parametric Spiral</option>
+                                <option value="lissajous">Lissajous Knot</option>
+                            </select>
+                            <button class="btn btn-pink" onclick="drawCrtShape()" style="padding: 6px 12px; font-size: 11px;">Draw</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="panel">
             <div class="panel-title">
                 Hardware Feed
@@ -1313,6 +1364,40 @@
             const mock = document.getElementById("badge-mock");
             if (data.servo.mock) mock.classList.add("active-pink");
             else mock.classList.remove("active-pink");
+
+            // CRT Status
+            if (data.crt) {
+                const crtBadge = document.getElementById("badge-crt-status");
+                const crtModeLabel = document.getElementById("crt-current-mode-label");
+                const crtSelect = document.getElementById("select-crt-mode");
+                
+                if (crtBadge) {
+                    if (data.crt.is_running) {
+                        crtBadge.classList.add("active-cyan");
+                        crtBadge.classList.remove("active-pink");
+                        crtBadge.innerHTML = `<div class="dot"></div> ACTIVE`;
+                    } else {
+                        crtBadge.classList.remove("active-cyan");
+                        if (data.crt.enabled) {
+                            crtBadge.classList.add("active-pink");
+                            crtBadge.innerHTML = `<div class="dot"></div> STANDBY`;
+                        } else {
+                            crtBadge.classList.remove("active-pink");
+                            crtBadge.innerHTML = `<div class="dot"></div> INACTIVE`;
+                        }
+                    }
+                }
+                
+                if (crtModeLabel) {
+                    crtModeLabel.innerText = data.crt.current_mode;
+                }
+                
+                if (crtSelect && document.activeElement !== crtSelect && data.crt.current_mode) {
+                    if (["idle", "stt_waveform", "tts_waveform", "tts_mouth", "startup"].includes(data.crt.current_mode)) {
+                        crtSelect.value = data.crt.current_mode;
+                    }
+                }
+            }
 
             // Close/Open eyes buttons styling
             const btnClose = document.getElementById("btn-close-eyes");
@@ -2670,6 +2755,60 @@
             for (let i = 0; i < string.length; i++) {
                 view.setUint8(offset + i, string.charCodeAt(i));
             }
+        }
+
+        // CRT Monitor Controls
+        function setCrtMode(mode) {
+            fetch("/api/crt/mode", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mode: mode })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) {
+                    console.error("Failed to set CRT mode:", data.error);
+                }
+            })
+            .catch(err => console.error("Error setting CRT mode:", err));
+        }
+
+        function drawCrtText() {
+            const input = document.getElementById("crt-draw-text-input");
+            const val = input.value.trim();
+            if (!val) return;
+            fetch("/api/crt/draw", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: val })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    input.value = "";
+                } else {
+                    console.error("Failed to draw CRT text:", data.error);
+                }
+            })
+            .catch(err => console.error("Error drawing CRT text:", err));
+        }
+
+        function drawCrtShape() {
+            const select = document.getElementById("select-crt-shape");
+            const shape = select.value;
+            if (!shape) return;
+            fetch("/api/crt/draw", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ shape: shape })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) {
+                    console.error("Failed to draw CRT shape:", data.error);
+                }
+            })
+            .catch(err => console.error("Error drawing CRT shape:", err));
         }
     </script>
 </body>

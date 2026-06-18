@@ -361,6 +361,10 @@ class STTManager:
                 # Convert bytes to numpy array
                 audio_frame = np.frombuffer(data, dtype=np.int16)
                 
+                # Feed mic samples to CRT engine for real-time oscilloscope wiggles
+                if hasattr(self, "crt_engine") and self.crt_engine is not None:
+                    self.crt_engine.feed_microphone_samples(audio_frame.astype(np.float32) / 32768.0)
+                
                 # Resample using linear interpolation if device rate != 16000 Hz
                 if len(audio_frame) != CHUNK and len(audio_frame) > 0:
                     indices = np.linspace(0, len(audio_frame) - 1, CHUNK)
