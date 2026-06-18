@@ -71,6 +71,17 @@ class CompanionDaemon:
         self.is_running = False
         self.voice_listening_active = False
         
+        # Initialize TP1 interrupt pin from config (defaults to GPIO 24)
+        self.tp1_pin = None
+        self.tp1_pin_num = self.config_manager.config.get("face_tracking", {}).get("tp1_pin", 24)
+        if not self.sensor.mock:
+            try:
+                from gpiozero import DigitalInputDevice
+                self.tp1_pin = DigitalInputDevice(self.tp1_pin_num, pull_up=False)
+                self.log(f"[Sensor] TP1 Interrupt Pin initialized on GPIO {self.tp1_pin_num}")
+            except Exception as e:
+                self.log(f"[Sensor Error] Failed to initialize TP1 Interrupt Pin: {e}")
+
         # Background loops handles
         self.tracking_thread = None
         self.scheduler_thread = None
@@ -124,66 +135,103 @@ class CompanionDaemon:
         self.sensor.stop()
         self.wake_detector.stop()
         
+        # Close TP1 pin
+        if self.tp1_pin:
+            try:
+                self.tp1_pin.close()
+            except Exception:
+                pass
+        
         self.log("[Daemon] Companion Daemon stopped.")
 
     def _tracking_loop(self):
         """Connects the Person Sensor reading to the Servo Yaw/Pitch targets."""
         self.log("[Tracking] Face tracking loop active.")
+        
+        last_tp1_state = False
+        self._prev_tracking_mood = None
+        
         while self.is_running:
             enabled = self.config_manager.config.get("face_tracking", {}).get("enabled", True)
             
+            # Read TP1 hardware interrupt state or fallback to sensor's mock face detection
+            if self.tp1_pin is not None:
+                tp1_active = self.tp1_pin.is_active
+            else:
+                tp1_active = self.sensor.face_detected
+            
             # Run tracking if enabled and not in manual override or active gesture
             if enabled and not self.servos.manual_override and not self.servos.gesture_active:
-                face = self.sensor.get_primary_face()
                 
-                if face:
-                    self.last_face_time = time.time()
-                    if not self.servos.face_tracking_active:
-                        self.servos.face_tracking_active = True
-                        self.log("[Tracking] Face acquired! Centering eyes.")
+                # Check for rising edge (TP1 transition: False -> True)
+                if tp1_active and not last_tp1_state:
+                    self.log("[Tracking] TP1 Interrupt: Face acquired! Triggering Pixar-style snap.")
                     
-                    # 1. Map Face X (0..255) to Yaw servo bounds
-                    # Coordinate inversion options
-                    invert_x = self.config_manager.config.get("face_tracking", {}).get("invert_x", False)
-                    x_pct = face["x"] / 255.0
-                    if invert_x:
-                        x_pct = 1.0 - x_pct
+                    # Pixar suppression: perform a quick blink to cover the eyeball saccadic jump
+                    self.servos.trigger_blink()
+                    
+                    # Set eye expression to excited to widen the eyelids and set eyebal stiffness to underdamped spring bounce
+                    self._prev_tracking_mood = self.servos.mood
+                    self.servos.mood = "excited"
+                    
+                last_tp1_state = tp1_active
+                
+                if tp1_active:
+                    face = self.sensor.get_primary_face()
+                    
+                    if face:
+                        self.last_face_time = time.time()
+                        if not self.servos.face_tracking_active:
+                            self.servos.face_tracking_active = True
+                            self.log("[Tracking] Face acquired! Centering eyes.")
                         
-                    yaw_cfg = self.config_manager.config.get("servos", {}).get("yaw", {})
-                    y_min = yaw_cfg.get("min_angle", 50.0)
-                    y_max = yaw_cfg.get("max_angle", 130.0)
-                    target_yaw = y_min + x_pct * (y_max - y_min)
-                    
-                    # 2. Map Face Y (0..255) to Pitch servo bounds
-                    invert_y = self.config_manager.config.get("face_tracking", {}).get("invert_y", False)
-                    y_pct = face["y"] / 255.0
-                    if invert_y:
-                        y_pct = 1.0 - y_pct
+                        # 1. Map Face X (0..255) to Yaw servo bounds
+                        invert_x = self.config_manager.config.get("face_tracking", {}).get("invert_x", False)
+                        x_pct = face["x"] / 255.0
+                        if invert_x:
+                            x_pct = 1.0 - x_pct
+                            
+                        yaw_cfg = self.config_manager.config.get("servos", {}).get("yaw", {})
+                        y_min = yaw_cfg.get("min_angle", 50.0)
+                        y_max = yaw_cfg.get("max_angle", 130.0)
+                        target_yaw = y_min + x_pct * (y_max - y_min)
                         
-                    pitch_cfg = self.config_manager.config.get("servos", {}).get("pitch", {})
-                    p_min = pitch_cfg.get("min_angle", 60.0)
-                    p_max = pitch_cfg.get("max_angle", 120.0)
-                    target_pitch = p_min + y_pct * (p_max - p_min)
-                    
-                    # Apply exponential moving average (EMA) to smooth out face tracking coordinate noise
-                    if not hasattr(self, "_smooth_yaw"):
-                        self._smooth_yaw = target_yaw
-                        self._smooth_pitch = target_pitch
-                    else:
-                        alpha = 0.10 # Smoothing factor (lower = smoother/slower, higher = snappier)
-                        self._smooth_yaw = self._smooth_yaw + alpha * (target_yaw - self._smooth_yaw)
-                        self._smooth_pitch = self._smooth_pitch + alpha * (target_pitch - self._smooth_pitch)
-                    
-                    # Update targets
-                    self.servos.set_target("yaw", self._smooth_yaw)
-                    self.servos.set_target("pitch", self._smooth_pitch)
-                    
+                        # 2. Map Face Y (0..255) to Pitch servo bounds
+                        invert_y = self.config_manager.config.get("face_tracking", {}).get("invert_y", False)
+                        y_pct = face["y"] / 255.0
+                        if invert_y:
+                            y_pct = 1.0 - y_pct
+                            
+                        pitch_cfg = self.config_manager.config.get("servos", {}).get("pitch", {})
+                        p_min = pitch_cfg.get("min_angle", 60.0)
+                        p_max = pitch_cfg.get("max_angle", 120.0)
+                        target_pitch = p_min + y_pct * (p_max - p_min)
+                        
+                        # Apply exponential moving average (EMA) to smooth out face tracking coordinate noise
+                        if not hasattr(self, "_smooth_yaw"):
+                            self._smooth_yaw = target_yaw
+                            self._smooth_pitch = target_pitch
+                        else:
+                            # Snappy Pixar ease: react quickly to changes (alpha = 0.25)
+                            alpha = 0.25
+                            self._smooth_yaw = self._smooth_yaw + alpha * (target_yaw - self._smooth_yaw)
+                            self._smooth_pitch = self._smooth_pitch + alpha * (target_pitch - self._smooth_pitch)
+                        
+                        # Update targets
+                        self.servos.set_target("yaw", self._smooth_yaw)
+                        self.servos.set_target("pitch", self._smooth_pitch)
+                        
                 else:
                     # Face lost logic (wait 2 seconds before reverting to autopilot)
                     if self.servos.face_tracking_active:
                         if time.time() - self.last_face_time > 2.0:
                             self.servos.face_tracking_active = False
                             self.log("[Tracking] Face lost. Reverting to auto look-around.")
+                            # Restore original mood
+                            if self._prev_tracking_mood:
+                                self.servos.mood = self._prev_tracking_mood
+                            else:
+                                self.servos.mood = "neutral"
                             # Clean up EMA smooth state variables
                             if hasattr(self, "_smooth_yaw"):
                                 delattr(self, "_smooth_yaw")
