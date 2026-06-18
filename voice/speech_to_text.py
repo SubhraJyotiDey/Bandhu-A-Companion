@@ -48,20 +48,23 @@ class STTManager:
         if lang is None:
             lang = self.config_manager.config.get("voice", {}).get("language", "en-US")
             
-        if self.vosk_available:
+        auto_detect = self.config_manager.config.get("voice", {}).get("auto_language_detection", True)
+        
+        # If auto-detect is disabled, we prefer offline local Vosk if available.
+        if self.vosk_available and not auto_detect:
             try:
                 # Perform offline low-latency transcription using local Vosk
                 return self._listen_and_transcribe_vosk(timeout, phrase_time_limit, lang)
             except Exception as e:
                 print(f"[STT Warning] Vosk transcription failed: {e}. Falling back to Google Cloud...")
                 
-        # Google Cloud STT fallback
+        # Google Cloud STT / Parallel Auto-detect
         if not self.recognizer or not self.microphone:
             print("[STT MOCK] Listening... (Mock STT: enter your text in the Web Portal console).")
             time.sleep(3)
             return None
 
-        print(f"[STT Cloud] Listening for audio (language: {lang})...")
+        print(f"[STT Cloud] Listening for audio (language: {lang}, auto-detect: {auto_detect})...")
         
         try:
             import speech_recognition as sr
@@ -81,28 +84,76 @@ class STTManager:
                     
             print("[STT Cloud] Speech captured. Transcribing...")
             
-            # Map language to Google Cloud codes
-            lang_code = "en-US"
-            lang_lower = lang.lower()
-            if "bn" in lang_lower:
-                lang_code = "bn-IN" if "in" in lang_lower else "bn-BD"
-            elif "hi" in lang_lower:
-                lang_code = "hi-IN"
-            else:
-                lang_code = "en-IN" if "in" in lang_lower else "en-US"
+            if auto_detect:
+                import concurrent.futures
                 
-            transcription = self.recognizer.recognize_google(audio_data, language=lang_code)
-            print(f"[STT Cloud] Result: \"{transcription}\"")
-            return transcription
-            
-        except sr.UnknownValueError:
-            print("[STT Cloud] Speech recognition could not understand the audio.")
-            return ""
-        except sr.RequestError as e:
-            print(f"[STT Cloud Error] Google API request failed: {e}")
-            return ""
+                def transcribe_lang(lang_code):
+                    try:
+                        res = self.recognizer.recognize_google(audio_data, language=lang_code, show_all=True)
+                        if not res or not isinstance(res, dict) or 'alternative' not in res:
+                            return lang_code, "", 0.0
+                        alternatives = res['alternative']
+                        if not alternatives:
+                            return lang_code, "", 0.0
+                        best = alternatives[0]
+                        text = best.get('transcript', '')
+                        confidence = best.get('confidence', 0.8)
+                        return lang_code, text, confidence
+                    except Exception:
+                        return lang_code, "", 0.0
+                        
+                candidate_langs = ["en-US", "bn-IN", "hi-IN"]
+                results = []
+                with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                    futures = {executor.submit(transcribe_lang, l): l for l in candidate_langs}
+                    for future in concurrent.futures.as_completed(futures):
+                        results.append(future.result())
+                        
+                valid_results = [r for r in results if r[1].strip()]
+                if not valid_results:
+                    print("[STT Cloud] Speech recognition could not understand the audio in any language.")
+                    # Try to fall back to Vosk if available
+                    if self.vosk_available:
+                        print("[STT Warning] Falling back to offline Vosk...")
+                        return self._listen_and_transcribe_vosk(timeout, phrase_time_limit, lang)
+                    return ""
+                    
+                valid_results.sort(key=lambda x: x[2], reverse=True)
+                best_lang, best_text, best_conf = valid_results[0]
+                
+                print(f"[STT Cloud] Detected language: {best_lang} (confidence: {best_conf:.2f})")
+                print(f"[STT Cloud] Result: \"{best_text}\"")
+                
+                if best_lang != lang:
+                    self.config_manager.config["voice"]["language"] = best_lang
+                    self.config_manager.save_config()
+                    print(f"[STT Cloud] Dynamic Language Switch: {lang} -> {best_lang}")
+                    
+                return best_text
+                
+            else:
+                # Single language recognition
+                lang_code = "en-US"
+                lang_lower = lang.lower()
+                if "bn" in lang_lower:
+                    lang_code = "bn-IN" if "in" in lang_lower else "bn-BD"
+                elif "hi" in lang_lower:
+                    lang_code = "hi-IN"
+                else:
+                    lang_code = "en-IN" if "in" in lang_lower else "en-US"
+                    
+                transcription = self.recognizer.recognize_google(audio_data, language=lang_code)
+                print(f"[STT Cloud] Result: \"{transcription}\"")
+                return transcription
+                
         except Exception as e:
-            print(f"[STT Cloud Error] Speech capture exception: {e}")
+            print(f"[STT Cloud Error] Speech recognition failed: {e}")
+            if self.vosk_available:
+                print("[STT Warning] Falling back to offline Vosk...")
+                try:
+                    return self._listen_and_transcribe_vosk(timeout, phrase_time_limit, lang)
+                except Exception as ex:
+                    print(f"[STT Error] Offline Vosk fallback failed: {ex}")
             return ""
 
     def _listen_and_transcribe_vosk(self, timeout, phrase_time_limit, lang):

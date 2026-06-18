@@ -39,6 +39,7 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 "tts_provider": daemon.config_manager.config.get("voice", {}).get("tts_provider", "edge-tts"),
                 "wake_word": daemon.config_manager.config.get("voice", {}).get("wake_word", "jarvis"),
                 "wake_sensitivity": daemon.config_manager.config.get("voice", {}).get("wake_sensitivity", 0.5),
+                "auto_language_detection": daemon.config_manager.config.get("voice", {}).get("auto_language_detection", True),
                 "listening": daemon.voice_listening_active
             },
             "alarms": daemon.config_manager.config.get("alarms", []),
@@ -90,6 +91,11 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 config["voice"] = {}
             config["voice"]["language"] = str(data["language"])
             daemon.log(f"[Portal] Voice Language set to: {data['language']}")
+        if "auto_language_detection" in data:
+            if "voice" not in config:
+                config["voice"] = {}
+            config["voice"]["auto_language_detection"] = bool(data["auto_language_detection"])
+            daemon.log(f"[Portal] Auto Language Detection set to: {data['auto_language_detection']}")
         if "wake_word" in data:
             config["voice"]["wake_word"] = str(data["wake_word"]).lower()
             daemon.log(f"[Portal] Wake Word set to: {data['wake_word']}")

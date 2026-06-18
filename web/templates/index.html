@@ -967,6 +967,13 @@
                             <option value="bn-IN">Bengali (bn-IN)</option>
                             <option value="hi-IN">Hindi (hi-IN)</option>
                         </select>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+                            <span style="font-size: 11px; color: var(--text-secondary);">AUTO LANGUAGE SWITCH</span>
+                            <label class="switch">
+                                <input type="checkbox" id="toggle-auto-lang" onchange="setAutoLanguage(this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -1121,6 +1128,14 @@
                 const langSelect = document.getElementById("select-language");
                 if (langSelect && document.activeElement.id !== "select-language") {
                     langSelect.value = data.voice.language;
+                }
+            }
+
+            // Update Voice Auto-Detect checkbox
+            if (data.voice && data.voice.auto_language_detection !== undefined) {
+                const autoLangChk = document.getElementById("toggle-auto-lang");
+                if (autoLangChk) {
+                    autoLangChk.checked = data.voice.auto_language_detection;
                 }
             }
 
@@ -1563,6 +1578,15 @@
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
                 body: JSON.stringify({language: lang})
+            });
+        }
+
+        // Voice auto language detection setter
+        function setAutoLanguage(checked) {
+            fetch("/api/settings", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({auto_language_detection: checked})
             });
         }
 
