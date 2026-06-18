@@ -238,6 +238,9 @@ class CompanionDaemon:
         # Sleep mode status tracking
         self.sleep_active = False
         
+        # Latest exhibition results
+        self.latest_exhibition_result = ThreadSafeDict()
+        
         # Volume reconnect/monitor cache
         self.sink_volumes = ThreadSafeDict()
         
@@ -766,6 +769,13 @@ class CompanionDaemon:
             
             # Clean and check for exit commands
             cleanup_speech = user_speech.lower().strip()
+            
+            # Check for exhibition age predictor trigger
+            age_triggers = ["age predictor", "predict my age", "how old am i", "আমার বয়স কত", "আমার বয়স অনুমান করো", "বয়স অনুমান", "আমার বয়স কত", "আমার বয়স অনুমান করো", "বয়স অনুমান"]
+            if any(t in cleanup_speech for t in age_triggers):
+                self.start_age_predictor_game(lang)
+                continue
+                
             exit_phrases = ["goodbye", "exit", "stop conversation", "bye bye", "bye", "বিদায়", "अलविदा", "खत्म करो"]
             if any(p in cleanup_speech for p in exit_phrases):
                 parting = "Goodbye!" if "en" in lang else "আবার দেখা হবে!" if "bn" in lang else "फिर मिलेंगे!"
@@ -846,3 +856,148 @@ class CompanionDaemon:
             
         self._audio_snap_active = True
         threading.Thread(target=snap_run, daemon=True).start()
+
+    def start_age_predictor_game(self, lang):
+        """Runs the interactive vocal age predictor exhibition game."""
+        self.log("[Exhibition] Starting Vocal Age Predictor game...")
+        
+        # 1. Companion introduces the game
+        intro = (
+            "নমস্কার! আমি আপনার গলার আওয়াজ শুনে বয়স অনুমান করতে পারি। দয়া করে ৫ সেকেন্ডের মধ্যে বলুন আপনার নাম, অথবা বলুন: নমস্কার বন্ধু।"
+            if "bn" in lang else
+            "Hello! I can estimate your age by analyzing your vocal frequency. Please speak for 3 seconds after I blink my eyes."
+        )
+        
+        self.tts.speak(intro, lang)
+        
+        # Wait for intro to finish playing
+        self._wait_for_tts_interrupt()
+        
+        # Trigger double-blink to signal "speak now"
+        self.servos.trigger_double_blink()
+        
+        # 2. Capture audio
+        import pyaudio
+        import numpy as np
+        import random
+        
+        RATE = 16000
+        CHANNELS = 1
+        FORMAT = pyaudio.paInt16
+        CHUNK = 1024
+        RECORD_SECONDS = 3
+        
+        # We can temporarily pause the wake word detector
+        self.wake_detector.pause()
+        time.sleep(0.2)
+        
+        captured_frames = []
+        p = pyaudio.PyAudio()
+        stream = None
+        try:
+            stream = p.open(
+                format=FORMAT,
+                channels=CHANNELS,
+                rate=RATE,
+                input=True,
+                frames_per_buffer=CHUNK
+            )
+            self.log("[Exhibition] Listening to voice input for pitch analysis...")
+            for _ in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
+                if not self.is_running:
+                    break
+                data = stream.read(CHUNK, exception_on_overflow=False)
+                captured_frames.append(np.frombuffer(data, dtype=np.int16))
+        except Exception as e:
+            self.log(f"[Exhibition Error] Failed to record audio: {e}")
+        finally:
+            if stream:
+                try:
+                    stream.stop_stream()
+                    stream.close()
+                except Exception:
+                    pass
+            p.terminate()
+            self.wake_detector.resume()
+            
+        if not captured_frames:
+            error_msg = "দুঃখিত বন্ধু, আমি কোনো আওয়াজ শুনতে পেলাম না।" if "bn" in lang else "Sorry, I could not capture any voice input."
+            self.tts.speak(error_msg, lang)
+            return
+            
+        # Combine frames
+        audio_data = np.concatenate(captured_frames)
+        
+        # 3. Estimate pitch
+        pitch = self._estimate_pitch(audio_data, RATE)
+        self.log(f"[Exhibition] Detected fundamental vocal frequency: {pitch:.1f} Hz")
+        
+        # 4. Classify and generate response
+        if pitch > 235.0:
+            voice_class = "Child/High Pitch"
+            predicted_age = random.randint(8, 14)
+            reply = (
+                f"আপনার গলার কম্পাঙ্ক প্রায় {int(pitch)} হার্টজ। আমার মনে হয় আপনার বয়স {predicted_age} থেকে {predicted_age+2} বছরের মধ্যে। আপনার কণ্ঠস্বর খুবই মিষ্টি! [expression: happy]"
+                if "bn" in lang else
+                f"Your vocal frequency is around {int(pitch)} Hertz. I estimate your age to be between {predicted_age} and {predicted_age+2} years. You have a very sweet voice! [expression: happy]"
+            )
+        elif pitch >= 165.0:
+            voice_class = "Youth / Female / Medium Pitch"
+            predicted_age = random.randint(18, 25)
+            reply = (
+                f"আপনার গলার কম্পাঙ্ক প্রায় {int(pitch)} হার্টজ। আমার অনুমান আপনার বয়স {predicted_age} থেকে {predicted_age+3} বছরের কাছাকাছি। আপনার কণ্ঠস্বর অত্যন্ত সুরেলা ও প্রাণবন্ত! [expression: excited]"
+                if "bn" in lang else
+                f"Your vocal frequency is around {int(pitch)} Hertz. I estimate your age to be between {predicted_age} and {predicted_age+3} years. Your voice sounds melodious and full of life! [expression: excited]"
+            )
+        else:
+            voice_class = "Adult Male / Deep Pitch"
+            predicted_age = random.randint(26, 38)
+            reply = (
+                f"আপনার গলার কম্পাঙ্ক প্রায় {int(pitch)} হার্টজ। গম্ভীর কণ্ঠস্বর শুনে মনে হচ্ছে আপনার বয়স {predicted_age} থেকে {predicted_age+4} বছরের মধ্যে। খুব বলিষ্ঠ ও আত্মবিশ্বাসী গলার আওয়াজ! [expression: happy]"
+                if "bn" in lang else
+                f"Your vocal frequency is around {int(pitch)} Hertz. Based on your deep voice, I estimate your age to be between {predicted_age} and {predicted_age+4} years. You have a strong and confident voice! [expression: happy]"
+            )
+            
+        # Store latest result in daemon state to report to portal
+        self.latest_exhibition_result.update({
+            "timestamp": time.time(),
+            "pitch": round(pitch, 1),
+            "voice_class": voice_class,
+            "predicted_age_range": f"{predicted_age} - {predicted_age+3}",
+            "reply": reply
+        })
+        
+        # Apply eye gesture / expression based on tags
+        self._apply_agent_response_effects(reply)
+        
+        # Speak response
+        self.tts.speak(reply, lang)
+
+    def _estimate_pitch(self, audio_data, sample_rate=16000):
+        import numpy as np
+        if len(audio_data) == 0:
+            return 180.0
+        try:
+            signal = audio_data.astype(np.float32) - np.mean(audio_data)
+            # Find zero crossings as fallback
+            zero_crossings = np.nonzero(np.diff(signal > 0))[0]
+            duration = len(audio_data) / sample_rate
+            zcr_freq = len(zero_crossings) / (2.0 * duration) if duration > 0 else 180.0
+            
+            # Autocorrelation
+            corr = np.correlate(signal, signal, mode='full')
+            corr = corr[len(corr)//2:]
+            
+            min_lag = int(sample_rate / 400.0) # 400Hz max
+            max_lag = int(sample_rate / 80.0)  # 80Hz min
+            
+            lag_peak = np.argmax(corr[min_lag:max_lag]) + min_lag
+            pitch = sample_rate / lag_peak if lag_peak > 0 else 180.0
+            
+            if 80.0 <= pitch <= 450.0:
+                return float(pitch)
+            if 80.0 <= zcr_freq <= 450.0:
+                return float(zcr_freq)
+        except Exception:
+            pass
+        return 180.0

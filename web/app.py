@@ -125,7 +125,8 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 "uptime": get_uptime()
             },
             "alarms": daemon.config_manager.config.get("alarms", []),
-            "logs": list(daemon.logs)
+            "logs": list(daemon.logs),
+            "exhibition": getattr(daemon, "latest_exhibition_result", {})
         }
         return jsonify(status)
 
@@ -482,6 +483,13 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
     def trigger_voice():
         """Simulates wake word trigger from UI."""
         daemon.on_wake_trigger()
+        return jsonify({"success": True})
+
+    @app.route("/api/exhibition/age_predictor", methods=["POST"])
+    def trigger_age_predictor():
+        """Launches the Vocal Age Predictor interactive exhibition game."""
+        lang = daemon.config_manager.config.get("voice", {}).get("language", "en-US")
+        threading.Thread(target=daemon.start_age_predictor_game, args=(lang,), daemon=True).start()
         return jsonify({"success": True})
 
     @app.route("/api/voice/noise", methods=["POST"])
