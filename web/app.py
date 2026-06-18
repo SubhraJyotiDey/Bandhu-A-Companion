@@ -141,6 +141,7 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
         min_ang = data.get("min_angle")
         max_ang = data.get("max_angle")
         pin = data.get("pin")
+        close_ang = data.get("close_angle")
         
         if not name:
             return jsonify({"success": False, "error": "No servo name"})
@@ -161,6 +162,8 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
             srv["max_angle"] = float(max_ang)
         if pin is not None and pin != "":
             srv["pin"] = int(pin)
+        if close_ang is not None and close_ang != "":
+            srv["close_angle"] = float(close_ang)
             
         daemon.config_manager.save_config()
         daemon.log(f"[Portal] Saved calibration parameters for: {name}")
@@ -185,9 +188,18 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
         data = request.json or {}
         name = data.get("servo")
         direction = data.get("direction") # "min" or "max"
+        save_as = data.get("save_as") # Optional: "min", "max", "close"
         
-        if not name or direction not in ["min", "max"]:
-            return jsonify({"success": False, "error": "Missing parameters"})
+        if not name:
+            return jsonify({"success": False, "error": "Missing servo parameter"})
+            
+        if not save_as:
+            if direction not in ["min", "max"]:
+                return jsonify({"success": False, "error": "Missing direction or save_as parameter"})
+            save_as = "min" if direction == "min" else "max"
+            
+        if save_as not in ["min", "max", "close"]:
+            return jsonify({"success": False, "error": "Invalid save_as value"})
             
         final_angle = daemon.servos.stop_calibration_sweep()
         rounded_angle = round(final_angle, 1)
@@ -201,18 +213,18 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
             
         srv = config["servos"][name]
         
-        if direction == "min":
-            srv["min_angle"] = rounded_angle
+        if save_as == "close":
+            srv["close_angle"] = rounded_angle
         else:
-            srv["max_angle"] = rounded_angle
+            srv[f"{save_as}_angle"] = rounded_angle
             
         daemon.config_manager.save_config()
-        daemon.log(f"[Calibration] Saved autodetected {direction}_angle limit for {name}: {rounded_angle}")
+        daemon.log(f"[Calibration] Saved autodetected {save_as}_angle for {name}: {rounded_angle}")
         
         return jsonify({
             "success": True, 
             "servo": name, 
-            "direction": direction, 
+            "save_as": save_as, 
             "angle": rounded_angle
         })
 

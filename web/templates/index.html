@@ -672,6 +672,106 @@
         </div>
     </div>
 
+    <!-- Eyelid Close Calibration Wizard Modal -->
+    <div id="close-calibration-modal" class="cal-modal">
+        <div class="cal-modal-content">
+            <h2 style="margin:0; font-size:18px; color:var(--accent-pink); letter-spacing:1px; text-transform:uppercase;">Eyelid Close Wizard</h2>
+            <p style="font-size:12px; color:var(--text-secondary); margin:0;">Calibrate the exact closed physical angle for symmetric blinks, winks, and sleep states.</p>
+            
+            <div style="text-align:left; display:flex; flex-direction:column; gap:5px;">
+                <label style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase;">Select Eyelid Module</label>
+                <select id="close-wizard-servo" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:8px; border-radius:8px; outline:none; font-size:13px; font-family:inherit;">
+                    <option value="left_upper_eyelid">Left Upper Eyelid</option>
+                    <option value="left_lower_eyelid">Left Lower Eyelid</option>
+                    <option value="right_upper_eyelid">Right Upper Eyelid</option>
+                    <option value="right_lower_eyelid">Right Lower Eyelid</option>
+                </select>
+            </div>
+            
+            <div id="close-wizard-controls" style="display:flex; flex-direction:column; gap:12px;">
+                <div style="font-size:11px; color:var(--text-secondary);">
+                    Use the buttons below to slowly sweep the eyelid until it is perfectly closed. If you overshoot, sweep in the opposite direction. Click <strong>STOP & SAVE</strong> when done.
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <button class="btn btn-cyan" id="btn-sweep-closed" onclick="startCloseWizardSweep('closed')">Sweep Closed</button>
+                    <button class="btn btn-cyan" id="btn-sweep-open" onclick="startCloseWizardSweep('open')">Sweep Open</button>
+                </div>
+            </div>
+            
+            <div id="close-wizard-active" style="display:none; flex-direction:column; gap:10px; align-items:center;">
+                <div id="close-active-status" style="font-size:12px; font-weight:bold; color:var(--accent-pink); text-transform:uppercase; animation: pulse 1s infinite;">Sweeping...</div>
+                <div class="cal-angle-display" id="close-live-angle">90.0°</div>
+                <button class="btn btn-pink" style="width:100%; font-size:14px; font-weight:bold; padding:12px;" onclick="stopCloseWizardSweep()">STOP & SAVE CLOSED ANGLE</button>
+            </div>
+            
+            <div style="display:flex; justify-content:flex-end; margin-top:10px; border-top:1px solid rgba(255,255,255,0.05); padding-top:10px;">
+                <button class="btn" style="background:transparent; border:none; color:var(--text-secondary);" onclick="closeCloseWizard()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Eyelid Symmetry Alignment Wizard Modal -->
+    <div id="symmetry-wizard-modal" class="cal-modal">
+        <div class="cal-modal-content" style="max-width: 500px;">
+            <h2 style="margin:0; font-size:18px; color:var(--accent-cyan); letter-spacing:1px; text-transform:uppercase;">Eyelid Symmetry Wizard</h2>
+            <p style="font-size:12px; color:var(--text-secondary); margin:0;">Align left and right eyelids to the exact same physical levels for perfect visual symmetry.</p>
+            
+            <!-- Selection dropdowns -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; text-align:left;">
+                <div style="display:flex; flex-direction:column; gap:5px;">
+                    <label style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase;">Eyelid Group</label>
+                    <select id="sym-wizard-group" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:8px; border-radius:8px; outline:none; font-size:13px; font-family:inherit;" onchange="onSymmetrySetupChange()">
+                        <option value="upper">Upper Eyelids (L/R)</option>
+                        <option value="lower">Lower Eyelids (L/R)</option>
+                    </select>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:5px;">
+                    <label style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase;">Alignment Level</label>
+                    <select id="sym-wizard-level" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:8px; border-radius:8px; outline:none; font-size:13px; font-family:inherit;" onchange="onSymmetrySetupChange()">
+                        <option value="open">Fully Open Level</option>
+                        <option value="mid">Mid-way (Bored) Level</option>
+                        <option value="close">Fully Closed Level</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div style="font-size:11px; color:var(--text-secondary); text-align:left; border-top:1px solid rgba(255,255,255,0.05); padding-top:10px; margin-top:5px;">
+                Command both eyelids to the target angle, then adjust them individually until they are visually at the exact same height on the companion.
+            </div>
+
+            <!-- Active controls for Left and Right eyelids -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; background:rgba(0,0,0,0.2); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
+                <!-- Left Eyelid Controls -->
+                <div style="display:flex; flex-direction:column; gap:10px; align-items:center;">
+                    <div style="font-size:12px; font-weight:bold; color:var(--accent-pink);">LEFT EYELID</div>
+                    <div class="cal-angle-display" id="sym-left-angle" style="font-size:36px; margin:5px 0;">90.0°</div>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn" style="padding:6px 12px;" onclick="adjustSymmetryAngle('left', -1)">-1°</button>
+                        <button class="btn" style="padding:6px 12px;" onclick="adjustSymmetryAngle('left', 1)">+1°</button>
+                    </div>
+                </div>
+                
+                <!-- Right Eyelid Controls -->
+                <div style="display:flex; flex-direction:column; gap:10px; align-items:center;">
+                    <div style="font-size:12px; font-weight:bold; color:var(--accent-cyan);">RIGHT EYELID</div>
+                    <div class="cal-angle-display" id="sym-right-angle" style="font-size:36px; margin:5px 0;">90.0°</div>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn" style="padding:6px 12px;" onclick="adjustSymmetryAngle('right', -1)">-1°</button>
+                        <button class="btn" style="padding:6px 12px;" onclick="adjustSymmetryAngle('right', 1)">+1°</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display:flex; justify-content:space-between; gap:10px; margin-top:10px; border-top:1px solid rgba(255,255,255,0.05); padding-top:10px;">
+                <button class="btn btn-pink" onclick="testSymmetryBlink()" style="padding:8px 16px;">Test Blink</button>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn" style="background:transparent; border:none; color:var(--text-secondary);" onclick="closeSymmetryWizard()">Cancel</button>
+                    <button class="btn btn-cyan" style="font-weight:bold; padding:8px 20px;" onclick="saveSymmetryAlignment()">SAVE ALIGNMENT</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="glow-left" class="ambient-glow"></div>
     <div id="glow-right" class="ambient-glow"></div>
 
@@ -804,6 +904,8 @@
             <div class="panel-title" style="display:flex; justify-content:space-between">
                 6-Servo Calibration Panel
                 <div style="display:flex; gap:10px">
+                    <button class="btn btn-cyan" onclick="openSymmetryWizard()" style="padding: 4px 10px; font-size:11px">Eyelid Symmetry Wizard</button>
+                    <button class="btn btn-pink" onclick="openCloseWizard()" style="padding: 4px 10px; font-size:11px">Eyelid Close Wizard</button>
                     <button class="btn btn-cyan" onclick="openCalibrationWizard()" style="padding: 4px 10px; font-size:11px">Auto-Limit Wizard</button>
                     <button class="btn btn-pink" onclick="toggleManualMode(false)" id="btn-release" style="padding: 4px 10px; font-size:11px">Auto Gaze</button>
                     <button class="btn btn-cyan" onclick="toggleManualMode(true)" id="btn-lock" style="padding: 4px 10px; font-size:11px; display:none">Manual Lock</button>
@@ -1222,7 +1324,7 @@
                         <div class="slider-row">
                             <input type="range" id="slider-${name}" min="0" max="180" value="${val}" oninput="onManualSliderMove('${name}', this.value)" onchange="onManualSliderStop('${name}')">
                         </div>
-                        <div class="calibration-row">
+                        <div class="calibration-row" style="grid-template-columns: ${["left_upper_eyelid", "left_lower_eyelid", "right_upper_eyelid", "right_lower_eyelid"].includes(name) ? 'repeat(5, 1fr)' : 'repeat(4, 1fr)'}">
                             <div class="calibration-input">
                                 <label>Trim</label>
                                 <input type="number" id="cal-trim-${name}" value="0" onchange="submitCalibration('${name}')">
@@ -1235,6 +1337,12 @@
                                 <label>Max</label>
                                 <input type="number" id="cal-max-${name}" value="140" onchange="submitCalibration('${name}')">
                             </div>
+                            ${["left_upper_eyelid", "left_lower_eyelid", "right_upper_eyelid", "right_lower_eyelid"].includes(name) ? `
+                            <div class="calibration-input">
+                                <label>Close</label>
+                                <input type="number" id="cal-close-${name}" value="90" onchange="submitCalibration('${name}')">
+                            </div>
+                            ` : ''}
                             <div class="calibration-input">
                                 <label>Pin</label>
                                 <input type="number" id="cal-pin-${name}" value="0" onchange="submitCalibration('${name}')">
@@ -1269,9 +1377,9 @@
                 });
             }
         }
-
+ 
         let servo_cfgs_cache = null;
-
+ 
         function fetchFullCalibrationValues() {
             fetch("/api/config")
                 .then(res => res.json())
@@ -1284,10 +1392,15 @@
                         const minEl = document.getElementById(`cal-min-${name}`);
                         const maxEl = document.getElementById(`cal-max-${name}`);
                         const pinEl = document.getElementById(`cal-pin-${name}`);
+                        const closeEl = document.getElementById(`cal-close-${name}`);
                         if (trimEl) trimEl.value = cfg.trim !== undefined ? cfg.trim : 0;
                         if (minEl) minEl.value = cfg.min_angle !== undefined ? cfg.min_angle : 40;
                         if (maxEl) maxEl.value = cfg.max_angle !== undefined ? cfg.max_angle : 140;
                         if (pinEl) pinEl.value = cfg.pin !== undefined ? cfg.pin : 0;
+                        if (closeEl) {
+                            const defaultClose = ["left_upper_eyelid", "right_upper_eyelid"].includes(name) ? 125 : (["left_lower_eyelid", "right_lower_eyelid"].includes(name) ? 80 : 90);
+                            closeEl.value = cfg.close_angle !== undefined ? cfg.close_angle : defaultClose;
+                        }
                     });
 
                     // Set checkboxes from config
@@ -1363,6 +1476,8 @@
             const min_angle = document.getElementById(`cal-min-${name}`).value;
             const max_angle = document.getElementById(`cal-max-${name}`).value;
             const pin = document.getElementById(`cal-pin-${name}`).value;
+            const closeEl = document.getElementById(`cal-close-${name}`);
+            const close_angle = closeEl ? closeEl.value : null;
 
             fetch("/api/servo/calibrate", {
                 method: "POST",
@@ -1372,7 +1487,8 @@
                     trim: trim,
                     min_angle: min_angle,
                     max_angle: max_angle,
-                    pin: pin
+                    pin: pin,
+                    close_angle: close_angle
                 })
             });
         }
@@ -1645,6 +1761,251 @@
                     alert("Failed to save calibration limit.");
                     closeCalibrationWizard();
                 }
+            });
+        }
+
+        // Eyelid Close Wizard Logic
+        let closeWizardActiveServo = "";
+        let closeWizardDirection = "";
+        let closeWizardTimer = null;
+
+        function openCloseWizard() {
+            document.getElementById("close-wizard-controls").style.display = "flex";
+            document.getElementById("close-wizard-active").style.display = "none";
+            document.getElementById("close-wizard-servo").disabled = false;
+            
+            document.getElementById("close-calibration-modal").classList.add("active");
+            toggleManualMode(true);
+        }
+
+        function closeCloseWizard() {
+            if (closeWizardTimer) {
+                clearInterval(closeWizardTimer);
+                closeWizardTimer = null;
+            }
+            fetch("/api/calibration/stop", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({servo: closeWizardActiveServo})
+            });
+            
+            document.getElementById("close-calibration-modal").classList.remove("active");
+            toggleManualMode(false);
+        }
+
+        function startCloseWizardSweep(action) {
+            closeWizardActiveServo = document.getElementById("close-wizard-servo").value;
+            document.getElementById("close-wizard-servo").disabled = true;
+            
+            const isUpper = closeWizardActiveServo.includes("upper");
+            let direction = "max";
+            if (action === "closed") {
+                direction = isUpper ? "max" : "min";
+            } else {
+                direction = isUpper ? "min" : "max";
+            }
+            closeWizardDirection = direction;
+            
+            document.getElementById("close-wizard-controls").style.display = "none";
+            document.getElementById("close-wizard-active").style.display = "flex";
+            document.getElementById("close-active-status").innerText = action === "closed" ? "Sweeping Closed..." : "Sweeping Open...";
+            
+            fetch("/api/calibration/start", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({servo: closeWizardActiveServo, direction: direction})
+            }).then(res => res.json()).then(data => {
+                if (data.success) {
+                    closeWizardTimer = setInterval(() => {
+                        fetch("/api/status")
+                            .then(res => res.json())
+                            .then(status => {
+                                const angle = status.servo.current[closeWizardActiveServo];
+                                document.getElementById("close-live-angle").innerText = `${angle.toFixed(1)}°`;
+                            });
+                    }, 100);
+                } else {
+                    alert("Failed to start sweep.");
+                    closeCloseWizard();
+                }
+            });
+        }
+
+        function stopCloseWizardSweep() {
+            if (closeWizardTimer) {
+                clearInterval(closeWizardTimer);
+                closeWizardTimer = null;
+            }
+            
+            fetch("/api/calibration/stop", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({servo: closeWizardActiveServo, save_as: "close"})
+            }).then(res => res.json()).then(data => {
+                if (data.success) {
+                    fetchFullCalibrationValues();
+                    alert(`Successfully calibrated closed angle for ${closeWizardActiveServo.replace(/_/g, ' ')}!\nClosed Angle: ${data.angle}°`);
+                } else {
+                    alert("Failed to save closed angle.");
+                }
+                document.getElementById("close-wizard-controls").style.display = "flex";
+                document.getElementById("close-wizard-active").style.display = "none";
+                document.getElementById("close-wizard-servo").disabled = false;
+            });
+        }
+
+        // Eyelid Symmetry Wizard Logic
+        let symWizardGroup = "upper"; // "upper" or "lower"
+        let symWizardLevel = "open"; // "open", "mid", "close"
+        let symLeftAngle = 90.0;
+        let symRightAngle = 90.0;
+
+        function openSymmetryWizard() {
+            document.getElementById("sym-wizard-group").value = "upper";
+            document.getElementById("sym-wizard-level").value = "open";
+            document.getElementById("symmetry-wizard-modal").classList.add("active");
+            toggleManualMode(true);
+            onSymmetrySetupChange();
+        }
+
+        function closeSymmetryWizard() {
+            document.getElementById("symmetry-wizard-modal").classList.remove("active");
+            toggleManualMode(false);
+        }
+
+        function onSymmetrySetupChange() {
+            symWizardGroup = document.getElementById("sym-wizard-group").value;
+            symWizardLevel = document.getElementById("sym-wizard-level").value;
+            
+            const leftName = symWizardGroup === "upper" ? "left_upper_eyelid" : "left_lower_eyelid";
+            const rightName = symWizardGroup === "upper" ? "right_upper_eyelid" : "right_lower_eyelid";
+            
+            fetch("/api/config")
+                .then(res => res.json())
+                .then(data => {
+                    const servos = data.servos || {};
+                    const leftCfg = servos[leftName] || {};
+                    const rightCfg = servos[rightName] || {};
+                    
+                    if (symWizardLevel === "open") {
+                        if (symWizardGroup === "upper") {
+                            symLeftAngle = leftCfg.min_angle !== undefined ? leftCfg.min_angle : 40.0;
+                            symRightAngle = rightCfg.min_angle !== undefined ? rightCfg.min_angle : 40.0;
+                        } else {
+                            symLeftAngle = leftCfg.max_angle !== undefined ? leftCfg.max_angle : 140.0;
+                            symRightAngle = rightCfg.max_angle !== undefined ? rightCfg.max_angle : 140.0;
+                        }
+                    } else if (symWizardLevel === "close") {
+                        const defaultClose = symWizardGroup === "upper" ? 125.0 : 80.0;
+                        symLeftAngle = leftCfg.close_angle !== undefined ? leftCfg.close_angle : defaultClose;
+                        symRightAngle = rightCfg.close_angle !== undefined ? rightCfg.close_angle : defaultClose;
+                    } else {
+                        const nominalBase = symWizardGroup === "upper" ? 92.0 : 116.0;
+                        const leftTrim = leftCfg.trim !== undefined ? leftCfg.trim : 0.0;
+                        const rightTrim = rightCfg.trim !== undefined ? rightCfg.trim : 0.0;
+                        symLeftAngle = nominalBase + leftTrim;
+                        symRightAngle = nominalBase + rightTrim;
+                    }
+                    
+                    updateSymmetryDisplays();
+                    sendSymmetryAngle(leftName, symLeftAngle);
+                    sendSymmetryAngle(rightName, symRightAngle);
+                });
+        }
+
+        function updateSymmetryDisplays() {
+            document.getElementById("sym-left-angle").innerText = `${symLeftAngle.toFixed(1)}°`;
+            document.getElementById("sym-right-angle").innerText = `${symRightAngle.toFixed(1)}°`;
+        }
+
+        function adjustSymmetryAngle(side, delta) {
+            const leftName = symWizardGroup === "upper" ? "left_upper_eyelid" : "left_lower_eyelid";
+            const rightName = symWizardGroup === "upper" ? "right_upper_eyelid" : "right_lower_eyelid";
+            
+            if (side === "left") {
+                symLeftAngle += delta;
+                symLeftAngle = Math.max(10.0, Math.min(170.0, symLeftAngle));
+                sendSymmetryAngle(leftName, symLeftAngle);
+            } else {
+                symRightAngle += delta;
+                symRightAngle = Math.max(10.0, Math.min(170.0, symRightAngle));
+                sendSymmetryAngle(rightName, symRightAngle);
+            }
+            updateSymmetryDisplays();
+        }
+
+        function sendSymmetryAngle(name, angle) {
+            fetch("/api/servo/manual", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({name: name, angle: angle, override: true})
+            });
+        }
+
+        function testSymmetryBlink() {
+            const leftName = symWizardGroup === "upper" ? "left_upper_eyelid" : "left_lower_eyelid";
+            const rightName = symWizardGroup === "upper" ? "right_upper_eyelid" : "right_lower_eyelid";
+            
+            fetch("/api/config")
+                .then(res => res.json())
+                .then(data => {
+                    const servos = data.servos || {};
+                    const leftClose = servos[leftName]?.close_angle ?? (symWizardGroup === "upper" ? 125.0 : 80.0);
+                    const rightClose = servos[rightName]?.close_angle ?? (symWizardGroup === "upper" ? 125.0 : 80.0);
+                    
+                    sendSymmetryAngle(leftName, leftClose);
+                    sendSymmetryAngle(rightName, rightClose);
+                    
+                    setTimeout(() => {
+                        sendSymmetryAngle(leftName, symLeftAngle);
+                        sendSymmetryAngle(rightName, symRightAngle);
+                    }, 250);
+                });
+        }
+
+        function saveSymmetryAlignment() {
+            const leftName = symWizardGroup === "upper" ? "left_upper_eyelid" : "left_lower_eyelid";
+            const rightName = symWizardGroup === "upper" ? "right_upper_eyelid" : "right_lower_eyelid";
+            
+            const leftPayload = { name: leftName };
+            const rightPayload = { name: rightName };
+            
+            if (symWizardLevel === "open") {
+                if (symWizardGroup === "upper") {
+                    leftPayload.min_angle = symLeftAngle;
+                    rightPayload.min_angle = symRightAngle;
+                } else {
+                    leftPayload.max_angle = symLeftAngle;
+                    rightPayload.max_angle = symRightAngle;
+                }
+            } else if (symWizardLevel === "close") {
+                leftPayload.close_angle = symLeftAngle;
+                rightPayload.close_angle = symRightAngle;
+            } else {
+                const nominalBase = symWizardGroup === "upper" ? 92.0 : 116.0;
+                leftPayload.trim = symLeftAngle - nominalBase;
+                rightPayload.trim = symRightAngle - nominalBase;
+            }
+            
+            Promise.all([
+                fetch("/api/servo/calibrate", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(leftPayload)
+                }),
+                fetch("/api/servo/calibrate", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(rightPayload)
+                })
+            ])
+            .then(() => {
+                fetchFullCalibrationValues();
+                alert("Symmetry alignment saved successfully!");
+                closeSymmetryWizard();
+            })
+            .catch(err => {
+                alert("Error saving alignment parameters: " + err);
             });
         }
     </script>

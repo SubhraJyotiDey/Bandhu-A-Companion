@@ -949,6 +949,17 @@ class ServoController:
         self.eyes_closed = False
         print("[Servo] Eyes opened command received.")
 
+    def get_close_angle(self, name):
+        """Returns the calibrated closed angle for the given eyelid, or hardcoded defaults."""
+        cfg = self.servo_cfgs.get(name, {})
+        default_map = {
+            "left_upper_eyelid": 125.0,
+            "right_upper_eyelid": 125.0,
+            "left_lower_eyelid": 80.0,
+            "right_lower_eyelid": 80.0
+        }
+        return cfg.get("close_angle", default_map.get(name, 90.0))
+
     def _get_blink_interval(self):
         """Returns a random blink interval that varies by mood (in seconds).
         Anxious/excited moods blink more frequently; calm/bored moods blink less.
@@ -1304,10 +1315,10 @@ class ServoController:
                     next_blink_time = now + self._get_blink_interval()
                 
                 if getattr(self, "eyes_closed", False):
-                    lu_target = 125.0
-                    ll_target = 80.0
-                    ru_target = 125.0
-                    rl_target = 80.0
+                    lu_target = self.get_close_angle("left_upper_eyelid")
+                    ll_target = self.get_close_angle("left_lower_eyelid")
+                    ru_target = self.get_close_angle("right_upper_eyelid")
+                    rl_target = self.get_close_angle("right_lower_eyelid")
                 else:
                     # Get normal baseline angles for this mood
                     lu_base, ll_base, ru_base, rl_base = self._get_eyelid_baselines()
@@ -1338,11 +1349,11 @@ class ServoController:
                     # Apply blink/wink overrides (takes priority over flutter)
                     if self.blink_active:
                         if self.blink_side in ["both", "left"]:
-                            lu_target = lu_target + (125.0 - lu_target) * self.blink_progress
-                            ll_target = ll_target + (80.0 - ll_target) * self.blink_progress
+                            lu_target = lu_target + (self.get_close_angle("left_upper_eyelid") - lu_target) * self.blink_progress
+                            ll_target = ll_target + (self.get_close_angle("left_lower_eyelid") - ll_target) * self.blink_progress
                         if self.blink_side in ["both", "right"]:
-                            ru_target = ru_target + (125.0 - ru_target) * self.blink_progress
-                            rl_target = rl_target + (80.0 - rl_target) * self.blink_progress
+                            ru_target = ru_target + (self.get_close_angle("right_upper_eyelid") - ru_target) * self.blink_progress
+                            rl_target = rl_target + (self.get_close_angle("right_lower_eyelid") - rl_target) * self.blink_progress
                 
                 # Curiosity perk-up: widen eyes briefly during snap phase
                 if self._curiosity_active and self._curiosity_phase == 0:
@@ -1371,16 +1382,25 @@ class ServoController:
                 
                 if self.blink_active:
                     if self.blink_side in ["both", "left"]:
-                        lu_target = lu_target + (125.0 - lu_target) * self.blink_progress
-                        ll_target = ll_target + (80.0 - ll_target) * self.blink_progress
+                        lu_target = lu_target + (self.get_close_angle("left_upper_eyelid") - lu_target) * self.blink_progress
+                        ll_target = ll_target + (self.get_close_angle("left_lower_eyelid") - ll_target) * self.blink_progress
                     if self.blink_side in ["both", "right"]:
-                        ru_target = ru_target + (125.0 - ru_target) * self.blink_progress
-                        rl_target = rl_target + (80.0 - rl_target) * self.blink_progress
+                        ru_target = ru_target + (self.get_close_angle("right_upper_eyelid") - ru_target) * self.blink_progress
+                        rl_target = rl_target + (self.get_close_angle("right_lower_eyelid") - rl_target) * self.blink_progress
                         
                 effective_target["left_upper_eyelid"] = lu_target
                 effective_target["left_lower_eyelid"] = ll_target
                 effective_target["right_upper_eyelid"] = ru_target
                 effective_target["right_lower_eyelid"] = rl_target
+            
+            # Map closed-eye constant targets to calibrated close_angle when not in manual override
+            if not self.manual_override:
+                for name in ["left_upper_eyelid", "right_upper_eyelid"]:
+                    if effective_target.get(name) == 125.0:
+                        effective_target[name] = self.get_close_angle(name)
+                for name in ["left_lower_eyelid", "right_lower_eyelid"]:
+                    if effective_target.get(name) == 80.0:
+                        effective_target[name] = self.get_close_angle(name)
             
             # ----------------------------------------------------------
             # 3. EXPONENTIAL EASE-OUT INTERPOLATION & WRITES
