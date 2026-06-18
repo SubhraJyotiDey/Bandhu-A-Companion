@@ -1161,32 +1161,37 @@
                         </div>
                     </div>
                     
-                    <!-- SCHOOL EXHIBITION - VOCAL AGE PREDICTOR -->
+                    <!-- EXHIBITION GAME CENTER -->
                     <div style="width: 100%; display: flex; flex-direction: column; gap: 10px; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
-                        <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-cyan);">🎓 School Exhibition Console</span>
+                        <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-cyan);">🎓 Exhibition Game Center</span>
                         <div style="display: flex; flex-direction: column; gap: 8px; background: rgba(0,255,255,0.03); border: 1px solid rgba(0,255,255,0.1); border-radius: 8px; padding: 10px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 11px; color: #fff; font-weight: 600;">Vocal Age Predictor</span>
-                                <button class="btn btn-cyan" onclick="startAgePredictor()" id="btn-age-predictor" style="padding: 4px 10px; font-size: 10px; font-weight: bold;">START GAME</button>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 5px; line-height: 1.4;">
+                                Start a vocal game or trigger by voice command (e.g. <em>"ধাঁধা খেলি"</em> or <em>"খেলা খেলি"</em>).
                             </div>
-                            <div id="age-predictor-status" style="font-size: 11px; color: var(--text-secondary); line-height: 1.4; margin-top: 5px;">
-                                Click start and speak for 3 seconds when the eyes double-blink! Or say: <em>"predict my age"</em> or <em>"আমার বয়স কত"</em>.
+                            
+                            <!-- Game Buttons -->
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                <button class="btn btn-cyan" onclick="startGame('riddle')" style="flex: 1; padding: 6px 8px; font-size: 10px; font-weight: bold; min-width: 80px;">RIDDLES</button>
+                                <button class="btn btn-cyan" onclick="startGame('word_chain')" style="flex: 1; padding: 6px 8px; font-size: 10px; font-weight: bold; min-width: 80px;">WORD CHAIN</button>
+                                <button class="btn btn-cyan" onclick="startGame('guess_number')" style="flex: 1; padding: 6px 8px; font-size: 10px; font-weight: bold; min-width: 80px;">GUESS NUMBER</button>
                             </div>
-                            <div id="age-predictor-results" style="display: none; flex-direction: column; gap: 4px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; margin-top: 4px;">
+                            
+                            <!-- Active Game Details -->
+                            <div id="game-dashboard-details" style="display: none; flex-direction: column; gap: 6px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; margin-top: 4px;">
                                 <div style="display: flex; justify-content: space-between; font-size: 11px;">
-                                    <span style="color: var(--text-secondary);">Detected Frequency:</span>
-                                    <span id="pred-freq" style="color: var(--accent-cyan); font-weight: bold;">--</span>
+                                    <span style="color: var(--text-secondary);">Active Game:</span>
+                                    <span id="active-game-name" style="color: var(--accent-cyan); font-weight: bold; text-transform: uppercase;">None</span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; font-size: 11px;">
-                                    <span style="color: var(--text-secondary);">Voice Class:</span>
-                                    <span id="pred-class" style="color: #fff;">--</span>
+                                    <span style="color: var(--text-secondary);">Round:</span>
+                                    <span id="game-round" style="color: #fff; font-weight: bold;">--</span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; font-size: 11px;">
-                                    <span style="color: var(--text-secondary);">Predicted Age:</span>
-                                    <span id="pred-age" style="color: var(--accent-pink); font-weight: bold;">--</span>
+                                    <span style="color: var(--text-secondary);">Score:</span>
+                                    <span id="game-score" style="color: var(--accent-pink); font-weight: bold;">--</span>
                                 </div>
-                                <div id="pred-reply" style="font-size: 11px; color: #fff; background: rgba(255,255,255,0.05); padding: 6px; border-radius: 4px; margin-top: 4px; border-left: 2px solid var(--accent-cyan);">
-                                    --
+                                <div style="display: flex; gap: 6px; margin-top: 4px;">
+                                    <button class="btn btn-pink" onclick="stopGame()" style="width: 100%; padding: 6px 10px; font-size: 10px; font-weight: bold;">STOP GAME</button>
                                 </div>
                             </div>
                         </div>
@@ -1243,49 +1248,53 @@
                     }
                     updateAlarmsList(data.alarms);
                     updateConsoleLogs(data.logs);
-                    updateExhibitionResults(data.exhibition);
+                    if (data.games) {
+                        updateGameDashboard(data.games);
+                    }
                 })
                 .catch(err => console.error("Error polling daemon:", err));
         }
 
-        function startAgePredictor() {
-            const btn = document.getElementById("btn-age-predictor");
-            const statusText = document.getElementById("age-predictor-status");
-            btn.disabled = true;
-            btn.innerText = "RECORDING...";
-            statusText.innerHTML = "Listen to the companion and speak clearly when the eyes double-blink!";
-            
-            fetch("/api/exhibition/age_predictor", { method: "POST" })
-                .then(res => res.json())
-                .then(data => {
-                    setTimeout(() => {
-                        btn.disabled = false;
-                        btn.innerText = "START GAME";
-                    }, 8000);
-                });
+        function startGame(gameName) {
+            fetch("/api/games/start", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ game: gameName })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) {
+                    console.error("Failed to start game:", data.error);
+                }
+            })
+            .catch(err => console.error("Error starting game:", err));
         }
 
-        function updateExhibitionResults(exhibition) {
-            const resultsDiv = document.getElementById("age-predictor-results");
-            const statusText = document.getElementById("age-predictor-status");
-            const btn = document.getElementById("btn-age-predictor");
-            
-            if (exhibition && exhibition.timestamp) {
-                const ageSec = (Date.now() / 1000) - exhibition.timestamp;
-                if (ageSec < 15.0) {
-                    resultsDiv.style.display = "flex";
-                    document.getElementById("pred-freq").innerText = exhibition.pitch + " Hz";
-                    document.getElementById("pred-class").innerText = exhibition.voice_class;
-                    document.getElementById("pred-age").innerText = exhibition.predicted_age_range + " years";
-                    document.getElementById("pred-reply").innerText = exhibition.reply.replace(/\[.*?\]/g, "");
-                    
-                    statusText.innerHTML = "Estimated successfully!";
-                    btn.disabled = false;
-                    btn.innerText = "START GAME";
-                    return;
+        function stopGame() {
+            fetch("/api/games/stop", { method: "POST" })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) {
+                    console.error("Failed to stop game");
                 }
+            })
+            .catch(err => console.error("Error stopping game:", err));
+        }
+
+        function updateGameDashboard(games) {
+            const detailsDiv = document.getElementById("game-dashboard-details");
+            const activeGameText = document.getElementById("active-game-name");
+            const roundText = document.getElementById("game-round");
+            const scoreText = document.getElementById("game-score");
+            
+            if (games && games.active_game) {
+                detailsDiv.style.display = "flex";
+                activeGameText.innerText = games.active_game.replace('_', ' ');
+                roundText.innerText = games.round;
+                scoreText.innerText = games.score;
+            } else {
+                detailsDiv.style.display = "none";
             }
-            resultsDiv.style.display = "none";
         }
 
         // Toggle badges

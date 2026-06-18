@@ -3,6 +3,22 @@ import time
 import os
 import json
 
+_original_print = print
+def print(*args, **kwargs):
+    try:
+        _original_print(*args, **kwargs)
+    except UnicodeEncodeError:
+        try:
+            file = kwargs.get("file", sys.stdout)
+            enc = getattr(file, "encoding", None) or "utf-8"
+            safe_args = [str(arg).encode(enc, errors="replace").decode(enc) for arg in args]
+            new_kwargs = kwargs.copy()
+            _original_print(*safe_args, **new_kwargs)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
 # Directory where manually-downloaded Vosk models are stored
 # Expected structure: voice/models/vosk-<lang>/  (e.g. vosk-en, vosk-hi, vosk-bn)
 VOSK_MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
@@ -187,6 +203,23 @@ class STTManager:
                 return transcription
                 
         except Exception as e:
+            import speech_recognition as sr
+            if isinstance(e, sr.UnknownValueError) and 'audio_data' in locals():
+                try:
+                    raw_data = audio_data.get_raw_data()
+                    import struct
+                    count = len(raw_data) // 2
+                    if count > 0:
+                        shorts = struct.unpack(f"{count}h", raw_data)
+                        sum_squares = sum(s * s for s in shorts)
+                        rms = (sum_squares / count) ** 0.5
+                        print(f"[STT Noise Monitor] Speech was not understood. Audio RMS: {rms:.1f}")
+                        if rms > 3500.0:
+                            print(f"[STT Noise Monitor] High-noise crowd threshold exceeded. Returning __TOO_NOISY__.")
+                            return "__TOO_NOISY__"
+                except Exception:
+                    pass
+                    
             print(f"[STT Cloud Error] Speech recognition failed: {e}")
             if self.vosk_available:
                 print("[STT Warning] Falling back to offline Vosk...")

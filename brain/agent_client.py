@@ -61,6 +61,17 @@ class ZeroClawClient:
             return "ওহ, শুনে খুব খারাপ লাগলো। মন খারাপ করো না বন্ধু, আমি সর্বদা তোমার সাথে আছি। একটা মজার কৌতুক শুনবে? [expression: sad]"
         if any(w in text for w in ["কৌতুক", "হাসাও", "গল্প"]):
             return "আচ্ছা, শোনো! বল্টু তার শিক্ষককে বলল, 'স্যার, আমি কি এমন কোনো কাজের শাস্তি পাবো যা আমি করিনি?' শিক্ষক বললেন, 'না, কখনোই না।' বল্টু তখন হেসে বলল, 'ধন্যবাদ স্যার! আসলে আমি আজকে বাড়ির কাজটাই করিনি!' [expression: happy]"
+        if any(w in text for w in ["ধাঁধা", "ধাঁধা খেলি", "ধাঁধার খেলা"]):
+            return "নিশ্চয়ই বন্ধু! চলো ধাঁধা খেলা যাক। [trigger_game: riddle]"
+        if any(w in text for w in ["শব্দ খেলা", "শব্দ-শৃঙ্খল", "শব্দ শৃঙ্খল"]):
+            return "নিশ্চয়ই বন্ধু! চলো শব্দ-শৃঙ্খল খেলা যাক। [trigger_game: word_chain]"
+        if any(w in text for w in ["সংখ্যা খেলা", "সংখ্যা খোঁজার খেলা"]):
+            return "নিশ্চয়ই বন্ধু! চলো সংখ্যা খোঁজার খেলা খেলি। [trigger_game: guess_number]"
+        if any(w in text for w in ["খেলা খেলো", "গেম খেলো", "খেলা খেলি"]):
+            return random.choice([
+                "চলো একটা চমৎকার খেলা খেলি! ধাঁধা খেলা, শব্দ-শৃঙ্খল, নাকি সংখ্যা খোঁজার খেলা? কোনটা খেলবে বলো? [expression: happy]",
+                "নিশ্চয়ই! চলো ধাঁধা খেলা খেলি। [trigger_game: riddle]"
+            ])
 
         # 2. Hindi triggers & responses (Friend-like, warm, empathetic)
         if any(w in text for w in ["कैसे हो", "कैसा है", "कैसे चल रहा है"]):
@@ -99,6 +110,14 @@ class ZeroClawClient:
             return "I'm really sorry you're feeling this way, buddy. Take a deep breath. I'm right here for you. Do you want to talk about it or maybe hear a fun joke? [expression: sad]"
         if "joke" in text or "laugh" in text:
             return "Why don't scientists trust atoms? Because they make up everything! [expression: happy]"
+        if "play game" in text or "play a game" in text or "lets play" in text or "let's play" in text:
+            return "Sure! Let's play the Riddle game! [trigger_game: riddle]"
+        if "riddle" in text:
+            return "Awesome! Let's play Riddles. [trigger_game: riddle]"
+        if "word game" in text or "word chain" in text:
+            return "Sure thing! Let's play the Word Chain game. [trigger_game: word_chain]"
+        if "number game" in text or "guess number" in text:
+            return "Right on! Let's play Guess the Number. [trigger_game: guess_number]"
         if "friend" in text or "love you" in text or "like you" in text:
             return random.choice([
                 "You are my absolute best friend! I'm so glad we have each other. [expression: excited]",

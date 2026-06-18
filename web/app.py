@@ -126,7 +126,11 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
             },
             "alarms": daemon.config_manager.config.get("alarms", []),
             "logs": list(daemon.logs),
-            "exhibition": getattr(daemon, "latest_exhibition_result", {})
+            "games": {
+                "active_game": daemon.games.active_game,
+                "score": daemon.games.score,
+                "round": daemon.games.round_num
+            }
         }
         return jsonify(status)
 
@@ -485,13 +489,6 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
         daemon.on_wake_trigger()
         return jsonify({"success": True})
 
-    @app.route("/api/exhibition/age_predictor", methods=["POST"])
-    def trigger_age_predictor():
-        """Launches the Vocal Age Predictor interactive exhibition game."""
-        lang = daemon.config_manager.config.get("voice", {}).get("language", "en-US")
-        threading.Thread(target=daemon.start_age_predictor_game, args=(lang,), daemon=True).start()
-        return jsonify({"success": True})
-
     @app.route("/api/voice/noise", methods=["POST"])
     def trigger_noise():
         """Simulates a sudden loud noise trigger from UI."""
@@ -623,6 +620,33 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
         daemon.servos.play_gesture("idle_curious_scan")
         daemon.tts.speak("Did you know? " + fact)
         return jsonify({"success": True, "fact": fact})
+
+    @app.route("/api/games/start", methods=["POST"])
+    def start_game():
+        data = request.json or {}
+        game_name = data.get("game")
+        if not game_name:
+            return jsonify({"success": False, "error": "Missing game name"})
+        lang = daemon.config_manager.config.get("voice", {}).get("language", "bn-IN")
+        daemon.voice_listening_active = True
+        prompt = daemon.games.start_game(game_name, lang)
+        daemon.active_game = game_name
+        return jsonify({"success": True, "prompt": prompt})
+
+    @app.route("/api/games/stop", methods=["POST"])
+    def stop_game():
+        lang = daemon.config_manager.config.get("voice", {}).get("language", "bn-IN")
+        prompt = daemon.games.stop_game(lang)
+        daemon.active_game = None
+        return jsonify({"success": True, "prompt": prompt})
+
+    @app.route("/api/games/status", methods=["GET"])
+    def get_game_status():
+        return jsonify({
+            "active_game": daemon.games.active_game,
+            "score": daemon.games.score,
+            "round": daemon.games.round_num
+        })
 
     @app.route("/api/servo/gesture", methods=["POST"])
     def trigger_gesture():

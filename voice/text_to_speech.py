@@ -4,6 +4,22 @@ import subprocess
 import threading
 import time
 
+_original_print = print
+def print(*args, **kwargs):
+    try:
+        _original_print(*args, **kwargs)
+    except UnicodeEncodeError:
+        try:
+            file = kwargs.get("file", sys.stdout)
+            enc = getattr(file, "encoding", None) or "utf-8"
+            safe_args = [str(arg).encode(enc, errors="replace").decode(enc) for arg in args]
+            new_kwargs = kwargs.copy()
+            _original_print(*safe_args, **new_kwargs)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
 class PlaybackProcessWrapper:
     pass
 
