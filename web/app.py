@@ -21,7 +21,30 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
 
     @app.route("/api/status", methods=["GET"])
     def get_status():
-        """Aggregates all subsystem states for real-time frontend visualization."""
+        # Read per-sink volumes from PulseAudio (non-blocking, returns {} on Windows)
+        sink_volumes = {}
+        if not sys.platform.startswith("win"):
+            import subprocess
+            sinks_to_query = [
+                "bluez_sink.41_42_9D_09_4D_D3.a2dp_sink",
+                "alsa_output.usb-GeneralPlus_USB_Audio_Device-00.analog-stereo",
+                "aec_sink"
+            ]
+            for sink in sinks_to_query:
+                try:
+                    result = subprocess.run(
+                        ["pactl", "get-sink-volume", sink],
+                        capture_output=True, text=True, timeout=2
+                    )
+                    if result.returncode == 0:
+                        # Parse output like: "Volume: front-left: 65536 / 100% / ..."
+                        import re
+                        match = re.search(r'(\d+)%', result.stdout)
+                        if match:
+                            sink_volumes[sink] = int(match.group(1))
+                except Exception:
+                    pass
+
         status = {
             "servo": {**daemon.servos.get_state(), "blink_active": daemon.servos.blink_active, "blink_side": daemon.servos.blink_side},
             "sensor": {
@@ -41,6 +64,7 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 "wake_sensitivity": daemon.config_manager.config.get("voice", {}).get("wake_sensitivity", 0.5),
                 "auto_language_detection": daemon.config_manager.config.get("voice", {}).get("auto_language_detection", True),
                 "audio_output_sink": daemon.config_manager.config.get("voice", {}).get("audio_output_sink", "aec_sink"),
+                "sink_volumes": sink_volumes,
                 "listening": daemon.voice_listening_active
             },
             "alarms": daemon.config_manager.config.get("alarms", []),
@@ -316,6 +340,31 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
             daemon.log(f"[Portal] Deleted scheduled alarm: {alarm_id}")
             return jsonify({"success": True})
         return jsonify({"success": False})
+
+    @app.route("/api/volume", methods=["POST"])
+    def set_volume():
+        """Sets the volume of a specific PulseAudio sink."""
+        data = request.json or {}
+        sink = data.get("sink")
+        volume = data.get("volume")
+        
+        if not sink or volume is None:
+            return jsonify({"success": False, "error": "Missing sink or volume"})
+        
+        volume = max(0, min(150, int(volume)))  # Clamp 0-150%
+        daemon.log(f"[Portal] Setting volume for '{sink}' to {volume}%")
+        
+        if not sys.platform.startswith("win"):
+            import subprocess
+            result = subprocess.run(
+                f"pactl set-sink-volume {sink} {volume}%",
+                shell=True, capture_output=True, text=True
+            )
+            if result.returncode != 0:
+                daemon.log(f"[Portal] pactl set-sink-volume failed: {result.stderr.strip()}")
+                return jsonify({"success": False, "error": result.stderr.strip()})
+        
+        return jsonify({"success": True, "sink": sink, "volume": volume})
 
     @app.route("/api/voice/trigger", methods=["POST"])
     def trigger_voice():
