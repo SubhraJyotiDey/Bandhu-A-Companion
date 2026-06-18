@@ -235,19 +235,20 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 config["sleep_mode"] = {}
             config["sleep_mode"]["enabled"] = bool(data["sleep_mode_enabled"])
             daemon.log(f"[Portal] Sleep Mode Schedule enabled: {config['sleep_mode']['enabled']}")
-            if config["sleep_mode"]["enabled"]:
-                from datetime import datetime
-                current_time = datetime.now().strftime("%H:%M")
-                if daemon.is_time_between(current_time, config["sleep_mode"].get("sleep_time", "22:00"), config["sleep_mode"].get("wake_time", "07:00")):
-                    daemon.sleep_active = True
-                    daemon.wake_detector.pause()
-                    daemon.servos.close_eyes()
+            with daemon.voice_flow_lock:
+                if config["sleep_mode"]["enabled"]:
+                    from datetime import datetime
+                    current_time = datetime.now().strftime("%H:%M")
+                    if daemon.is_time_between(current_time, config["sleep_mode"].get("sleep_time", "22:00"), config["sleep_mode"].get("wake_time", "07:00")):
+                        daemon.sleep_active = True
+                        daemon.wake_detector.pause()
+                        daemon.servos.close_eyes()
+                    else:
+                        daemon.sleep_active = False
+                        daemon.servos.open_eyes()
+                        daemon.wake_detector.resume()
                 else:
                     daemon.sleep_active = False
-                    daemon.servos.open_eyes()
-                    daemon.wake_detector.resume()
-            else:
-                daemon.sleep_active = False
                 daemon.servos.open_eyes()
                 daemon.wake_detector.resume()
                 
@@ -545,8 +546,9 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
             file = request.files['file']
             import tempfile
             import subprocess
+            import uuid
             temp_dir = tempfile.gettempdir()
-            temp_path = os.path.join(temp_dir, "intercom_play.wav")
+            temp_path = os.path.join(temp_dir, f"intercom_play_{uuid.uuid4().hex}.wav")
             file.save(temp_path)
             
             if not sys.platform.startswith("win"):
@@ -636,16 +638,18 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
         if not game_name:
             return jsonify({"success": False, "error": "Missing game name"})
         lang = daemon.config_manager.config.get("voice", {}).get("language", "bn-IN")
-        daemon.voice_listening_active = True
-        prompt = daemon.games.start_game(game_name, lang)
-        daemon.active_game = game_name
+        with daemon.voice_flow_lock:
+            daemon.voice_listening_active = True
+            prompt = daemon.games.start_game(game_name, lang)
+            daemon.active_game = game_name
         return jsonify({"success": True, "prompt": prompt})
 
     @app.route("/api/games/stop", methods=["POST"])
     def stop_game():
         lang = daemon.config_manager.config.get("voice", {}).get("language", "bn-IN")
-        prompt = daemon.games.stop_game(lang)
-        daemon.active_game = None
+        with daemon.voice_flow_lock:
+            prompt = daemon.games.stop_game(lang)
+            daemon.active_game = None
         return jsonify({"success": True, "prompt": prompt})
 
     @app.route("/api/games/status", methods=["GET"])
@@ -816,19 +820,22 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 if not game_name or game_name not in ["riddle", "word_chain", "guess_number"]:
                     return jsonify({"success": False, "error": f"Invalid game '{game_name}'."})
                 lang = daemon.config_manager.config.get("voice", {}).get("language", "bn-IN")
-                daemon.voice_listening_active = True
-                prompt = daemon.games.start_game(game_name, lang)
-                daemon.active_game = game_name
+                with daemon.voice_flow_lock:
+                    daemon.voice_listening_active = True
+                    prompt = daemon.games.start_game(game_name, lang)
+                    daemon.active_game = game_name
                 return jsonify({"success": True, "message": f"Started game '{game_name}'. Companion asked: '{prompt}'"})
                 
             elif tool == "stop_game":
                 lang = daemon.config_manager.config.get("voice", {}).get("language", "bn-IN")
-                prompt = daemon.games.stop_game(lang)
-                daemon.active_game = None
+                with daemon.voice_flow_lock:
+                    prompt = daemon.games.stop_game(lang)
+                    daemon.active_game = None
                 return jsonify({"success": True, "message": f"Stopped game. Companion said: '{prompt}'"})
                 
             elif tool == "get_game_status":
-                active_game = daemon.games.active_game
+                with daemon.voice_flow_lock:
+                    active_game = daemon.games.active_game
                 score = daemon.games.score
                 round_num = daemon.games.round_num
                 status_msg = f"Active Game: {active_game or 'None'}\nScore: {score}\nRound: {round_num}"
@@ -839,8 +846,9 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 if not user_input:
                     return jsonify({"success": False, "error": "Missing user_input."})
                 lang = daemon.config_manager.config.get("voice", {}).get("language", "bn-IN")
-                prompt = daemon.games.handle_input(user_input, lang)
-                daemon.active_game = daemon.games.active_game
+                with daemon.voice_flow_lock:
+                    prompt = daemon.games.handle_input(user_input, lang)
+                    daemon.active_game = daemon.games.active_game
                 return jsonify({"success": True, "message": prompt})
                 
             elif tool == "crt_draw_shape":

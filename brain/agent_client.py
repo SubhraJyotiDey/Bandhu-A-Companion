@@ -2,13 +2,24 @@ import urllib.request
 import urllib.parse
 import json
 import random
+import time
 
 class ZeroClawClient:
     def __init__(self, config_manager):
         self.config_manager = config_manager
+        self.api_down_until = 0.0
         
     def send_message(self, message_text):
         """Sends a message to the local ZeroClaw API. Fallback to mock conversation engine if offline."""
+        now = time.time()
+        if now < self.api_down_until:
+            msg = f"[AgentClient CircuitBreaker] API is offline. Bypassing request for another {int(self.api_down_until - now)}s."
+            if hasattr(self, "daemon") and self.daemon:
+                self.daemon.log(msg)
+            else:
+                print(msg)
+            return self._generate_mock_response(message_text)
+
         cfg = self.config_manager.config.get("zeroclaw", {})
         api_url = cfg.get("api_url", "http://127.0.0.1:42617/api/chat")
         token = cfg.get("api_token", "")
@@ -31,8 +42,13 @@ class ZeroClawClient:
                 if reply:
                     return reply
         except Exception as e:
+            self.api_down_until = time.time() + 60.0
             # Log that we are falling back to the local mock brain
-            print(f"[AgentClient Error] API request failed: {e}. Falling back to local mock brain.")
+            msg = f"[AgentClient Error] API request failed: {e}. Circuit breaker active for 60 seconds. Falling back to local mock brain."
+            if hasattr(self, "daemon") and self.daemon:
+                self.daemon.log(msg)
+            else:
+                print(msg)
             
         return self._generate_mock_response(message_text)
 

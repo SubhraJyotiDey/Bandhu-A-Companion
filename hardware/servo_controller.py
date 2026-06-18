@@ -52,6 +52,22 @@ class ServoController:
         self._flutter_active = False
         self._flutter_progress = 0.0
         
+        # Blink/Wink state machine variables
+        self.blink_state = 0
+        self.blink_side = "both"
+        self.blink_phase_start = 0.0
+        self.blink_params = {}
+        
+        # Double blink variables
+        self.double_blink_active = False
+        self.double_blink_step = 0
+        self.double_blink_pause_dur = 0.3
+        
+        # Flutter state variables
+        self.flutter_state = 0
+        self.flutter_cycle = 0
+        self.flutter_phase_start = 0.0
+        
         # Calibration sweep variables
         self.calibration_active = False
         self.calibration_angle = 90.0
@@ -259,7 +275,7 @@ class ServoController:
                 self.target_pos[name] = max(0.0, min(180.0, float(angle)))
 
     # ------------------------------------------------------------------
-    # BLINK & WINK SYSTEM
+    # BLINK & WINK SYSTEM (Deterministic State Machine)
     # ------------------------------------------------------------------
 
     def trigger_blink(self):
@@ -267,135 +283,37 @@ class ServoController:
         if not self.blink_active:
             self.blink_active = True
             self.blink_side = "both"
-            threading.Thread(target=self._blink_sequence_thread, daemon=True).start()
-
-    def _blink_sequence_thread(self):
-        """Coordinated blink timing using easing curves: closes lids in 100ms, holds 30ms, opens in 250ms."""
-        # 1. Close eyelids (100ms) using quadratic ease-in
-        close_duration = 0.10
-        start_time = time.time()
-        while time.time() - start_time < close_duration:
-            elapsed = time.time() - start_time
-            t = min(1.0, elapsed / close_duration)
-            self.blink_progress = t * t
-            time.sleep(0.008)
-        self.blink_progress = 1.0
-        
-        # 2. Hold closed briefly (30ms)
-        time.sleep(0.03)
-        
-        # 3. Open eyelids (250ms) using cubic ease-out
-        open_duration = 0.25
-        start_time = time.time()
-        while time.time() - start_time < open_duration:
-            elapsed = time.time() - start_time
-            t = min(1.0, elapsed / open_duration)
-            self.blink_progress = (1.0 - t) ** 3
-            time.sleep(0.008)
-            
-        self.blink_progress = 0.0
-        self.blink_active = False
+            self.blink_state = 1
+            self.blink_phase_start = time.time()
+            self.blink_params = {"close_dur": 0.10, "hold_dur": 0.03, "open_dur": 0.25}
 
     def trigger_double_blink(self):
         """Triggers two rapid blinks in sequence, ~250ms apart (common human pattern)."""
         if not self.blink_active:
             self.blink_active = True
+            self.double_blink_active = True
+            self.double_blink_step = 0
             self.blink_side = "both"
-            threading.Thread(target=self._double_blink_thread, daemon=True).start()
-
-    def _double_blink_thread(self):
-        """Two quick blinks with a brief pause between them."""
-        for i in range(2):
-            # Close (80ms)
-            close_dur = 0.08
-            start = time.time()
-            while time.time() - start < close_dur:
-                t = min(1.0, (time.time() - start) / close_dur)
-                self.blink_progress = t * t
-                time.sleep(0.008)
-            self.blink_progress = 1.0
-            time.sleep(0.02)
-            
-            # Open (200ms)
-            open_dur = 0.20
-            start = time.time()
-            while time.time() - start < open_dur:
-                t = min(1.0, (time.time() - start) / open_dur)
-                self.blink_progress = (1.0 - t) ** 3
-                time.sleep(0.008)
-            self.blink_progress = 0.0
-            
-            # Pause between blinks (only after first)
-            if i == 0:
-                time.sleep(random.uniform(0.25, 0.40))
-        
-        self.blink_active = False
+            self.blink_state = 1
+            self.blink_phase_start = time.time()
+            self.blink_params = {"close_dur": 0.08, "hold_dur": 0.02, "open_dur": 0.20}
 
     def trigger_wink(self, side="left"):
         """Triggers a single-sided wink."""
         if not self.blink_active:
             self.blink_active = True
             self.blink_side = side
-            threading.Thread(target=self._wink_sequence_thread, args=(side,), daemon=True).start()
-
-    def _wink_sequence_thread(self, side):
-        # 1. Close eyelid (100ms) using quadratic ease-in
-        close_duration = 0.10
-        start_time = time.time()
-        while time.time() - start_time < close_duration:
-            elapsed = time.time() - start_time
-            t = min(1.0, elapsed / close_duration)
-            self.blink_progress = t * t
-            time.sleep(0.008)
-        self.blink_progress = 1.0
-        
-        # 2. Hold closed briefly (40ms)
-        time.sleep(0.04)
-        
-        # 3. Open eyelid (250ms) using cubic ease-out
-        open_duration = 0.25
-        start_time = time.time()
-        while time.time() - start_time < open_duration:
-            elapsed = time.time() - start_time
-            t = min(1.0, elapsed / open_duration)
-            self.blink_progress = (1.0 - t) ** 3
-            time.sleep(0.008)
-            
-        self.blink_progress = 0.0
-        self.blink_active = False
+            self.blink_state = 1
+            self.blink_phase_start = time.time()
+            self.blink_params = {"close_dur": 0.10, "hold_dur": 0.04, "open_dur": 0.25}
 
     def _trigger_eyelid_flutter(self):
-        """Rapid 3-flutter sequence on mood transitions (3 partial blinks at ~40% closure)."""
+        """Triggers a 3-cycle partial flutter sequence handled by the control loop state machine."""
         if not self._flutter_active and not self.blink_active:
             self._flutter_active = True
-            threading.Thread(target=self._flutter_thread, daemon=True).start()
-
-    def _flutter_thread(self):
-        """Three quick partial eye narrows over ~400ms."""
-        for i in range(3):
-            # Partial close to 40% (40ms)
-            close_dur = 0.04
-            start = time.time()
-            while time.time() - start < close_dur:
-                t = min(1.0, (time.time() - start) / close_dur)
-                self._flutter_progress = t * 0.4
-                time.sleep(0.008)
-            self._flutter_progress = 0.4
-            
-            # Open back (60ms)
-            open_dur = 0.06
-            start = time.time()
-            while time.time() - start < open_dur:
-                t = min(1.0, (time.time() - start) / open_dur)
-                self._flutter_progress = 0.4 * (1.0 - t)
-                time.sleep(0.008)
-            self._flutter_progress = 0.0
-            
-            # Brief gap between flutters
-            if i < 2:
-                time.sleep(0.03)
-        
-        self._flutter_active = False
+            self.flutter_state = 1
+            self.flutter_cycle = 0
+            self.flutter_phase_start = time.time()
 
     def play_gesture(self, name):
         """Plays a predefined eye gesture in a separate thread if not already running a gesture."""
@@ -1119,6 +1037,84 @@ class ServoController:
             # Increment continuous run time for biological oscillations
             self.run_time += dt
 
+            # 1. Process Eyelid Blink State Machine
+            if self.blink_active and self.blink_state > 0:
+                elapsed = now - self.blink_phase_start
+                if self.blink_state == 1:  # Closing
+                    close_dur = self.blink_params.get("close_dur", 0.10)
+                    if elapsed < close_dur:
+                        t = elapsed / close_dur
+                        self.blink_progress = t * t
+                    else:
+                        self.blink_progress = 1.0
+                        self.blink_state = 2  # Hold
+                        self.blink_phase_start = now
+                elif self.blink_state == 2:  # Holding
+                    hold_dur = self.blink_params.get("hold_dur", 0.03)
+                    if elapsed >= hold_dur:
+                        self.blink_state = 3  # Opening
+                        self.blink_phase_start = now
+                elif self.blink_state == 3:  # Opening
+                    open_dur = self.blink_params.get("open_dur", 0.25)
+                    if elapsed < open_dur:
+                        t = elapsed / open_dur
+                        self.blink_progress = (1.0 - t) ** 3
+                    else:
+                        self.blink_progress = 0.0
+                        if self.double_blink_active and self.double_blink_step == 0:
+                            # Move to double blink pause
+                            self.blink_state = 4  # Pause between blinks
+                            self.double_blink_step = 1
+                            self.blink_phase_start = now
+                            self.double_blink_pause_dur = random.uniform(0.25, 0.40)
+                        else:
+                            # Finished blink
+                            self.blink_state = 0
+                            self.blink_active = False
+                            self.double_blink_active = False
+                elif self.blink_state == 4:  # Double blink pause
+                    if elapsed >= self.double_blink_pause_dur:
+                        # Start second blink
+                        self.blink_state = 1  # Closing
+                        self.double_blink_step = 2
+                        self.blink_phase_start = now
+                        self.blink_params = {"close_dur": 0.08, "hold_dur": 0.02, "open_dur": 0.20}
+
+            # 2. Process Eyelid Flutter State Machine
+            if self._flutter_active and self.flutter_state > 0:
+                elapsed = now - self.flutter_phase_start
+                if self.flutter_state == 1:  # Partial close (40ms)
+                    close_dur = 0.04
+                    if elapsed < close_dur:
+                        t = elapsed / close_dur
+                        self._flutter_progress = t * t * 0.40  # Max 40% narrowing
+                    else:
+                        self._flutter_progress = 0.40
+                        self.flutter_state = 2  # Hold
+                        self.flutter_phase_start = now
+                elif self.flutter_state == 2:  # Hold (30ms)
+                    if elapsed >= 0.03:
+                        self.flutter_state = 3  # Opening
+                        self.flutter_phase_start = now
+                elif self.flutter_state == 3:  # Opening (100ms)
+                    open_dur = 0.10
+                    if elapsed < open_dur:
+                        t = elapsed / open_dur
+                        self._flutter_progress = 0.40 * ((1.0 - t) ** 3)
+                    else:
+                        self._flutter_progress = 0.0
+                        self.flutter_state = 4  # Gap
+                        self.flutter_phase_start = now
+                elif self.flutter_state == 4:  # Gap between flutters (30ms)
+                    if elapsed >= 0.03:
+                        self.flutter_cycle += 1
+                        if self.flutter_cycle < 3:
+                            self.flutter_state = 1  # Next flutter cycle
+                            self.flutter_phase_start = now
+                        else:
+                            self.flutter_state = 0
+                            self._flutter_active = False
+
             # ----------------------------------------------------------
             # MOOD TRANSITION DETECTION (trigger eyelid flutter)
             # ----------------------------------------------------------
@@ -1234,9 +1230,9 @@ class ServoController:
                             # Sometimes play a quick wink or double blink in self-play
                             action_roll = random.random()
                             if action_roll < 0.25:
-                                threading.Thread(target=self.trigger_wink, args=(random.choice(["left", "right"]),), daemon=True).start()
+                                self.trigger_wink(random.choice(["left", "right"]))
                             elif action_roll < 0.50:
-                                threading.Thread(target=self.trigger_double_blink, daemon=True).start()
+                                self.trigger_double_blink()
                                 
                         elif roll < 0.15:
                             # 7% — Suspicious / Narrows eyes to "inspect" something quietly
@@ -1246,7 +1242,7 @@ class ServoController:
                             self.mood = "angry" # Narrows eyelids (angry mood baselines)
                             
                             if random.random() < 0.40:
-                                threading.Thread(target=self.play_gesture, args=("think",), daemon=True).start()
+                                self.play_gesture("think")
                                 
                         elif roll < 0.65:
                             # 50% — Micro-glance: subtle look shifts nearby

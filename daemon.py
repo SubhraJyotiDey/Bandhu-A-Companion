@@ -364,13 +364,16 @@ class CompanionDaemon:
         if sleep_cfg.get("enabled", False):
             current_time = datetime.now().strftime("%H:%M")
             if self.is_time_between(current_time, sleep_cfg.get("sleep_time", "22:00"), sleep_cfg.get("wake_time", "07:00")):
-                self.sleep_active = True
+                with self.voice_flow_lock:
+                    self.sleep_active = True
                 self.wake_detector.pause()
                 self.servos.close_eyes()
                 self.log("[Sleep Mode] Daemon started during sleep hours. Entering sleep mode.")
         
         # Trigger Startup eye gesture and CRT startup animation
-        if not self.sleep_active:
+        with self.voice_flow_lock:
+            is_asleep = self.sleep_active
+        if not is_asleep:
             self.servos.play_gesture("startup")
             if hasattr(self, "crt_engine") and self.crt_engine:
                 self.crt_engine.set_mode("startup")
@@ -444,7 +447,7 @@ class CompanionDaemon:
                             self.servos.trigger_double_blink()
                             self.servos.mood = "excited"
                             # Play a quick nod to welcome the user
-                            threading.Thread(target=self.servos.play_gesture, args=("nod",), daemon=True).start()
+                            self.servos.play_gesture("nod")
                             
                         # Detect group conversation attention shifts
                         elif face["group_index"] != self.last_group_index:
@@ -453,7 +456,7 @@ class CompanionDaemon:
                             self.servos.mood = "excited"
                             # 30% chance of a friendly wink when acknowledging a group member
                             if random.random() < 0.3:
-                                threading.Thread(target=self.servos.trigger_wink, args=(random.choice(["left", "right"]),), daemon=True).start()
+                                self.servos.trigger_wink(random.choice(["left", "right"]))
                         
                         self.last_group_index = face["group_index"]
                         self.last_face_count = face["total_group"]
@@ -544,18 +547,19 @@ class CompanionDaemon:
                     sleep_time = sleep_cfg.get("sleep_time", "22:00")
                     wake_time = sleep_cfg.get("wake_time", "07:00")
                     
-                    if current_time_str == sleep_time and not self.sleep_active:
-                        self.sleep_active = True
-                        self.wake_detector.pause()
-                        self.servos.close_eyes()
-                        self.log("[Sleep Mode] Scheduled time reached. Sleep mode activated.")
-                        
-                    elif current_time_str == wake_time and self.sleep_active:
-                        self.sleep_active = False
-                        self.servos.open_eyes()
-                        self.wake_detector.resume()
-                        self.servos.play_gesture("startup")
-                        self.log("[Sleep Mode] Scheduled time reached. Sleep mode deactivated.")
+                    with self.voice_flow_lock:
+                        if current_time_str == sleep_time and not self.sleep_active:
+                            self.sleep_active = True
+                            self.wake_detector.pause()
+                            self.servos.close_eyes()
+                            self.log("[Sleep Mode] Scheduled time reached. Sleep mode activated.")
+                            
+                        elif current_time_str == wake_time and self.sleep_active:
+                            self.sleep_active = False
+                            self.servos.open_eyes()
+                            self.wake_detector.resume()
+                            self.servos.play_gesture("startup")
+                            self.log("[Sleep Mode] Scheduled time reached. Sleep mode deactivated.")
 
                 alarms = self.config_manager.config.get("alarms", [])
                 for alarm in alarms:
@@ -852,7 +856,8 @@ class CompanionDaemon:
             
             if "[stop_game]" in agent_reply:
                 self.games.stop_game(lang)
-                self.active_game = None
+                with self.voice_flow_lock:
+                    self.active_game = None
                 self._wait_for_tts_interrupt()
                 continue
             
@@ -861,7 +866,8 @@ class CompanionDaemon:
                 match = re.search(r'\[trigger_game:\s*(\w+)\]', agent_reply)
                 if match:
                     g_name = match.group(1)
-                    self.active_game = g_name
+                    with self.voice_flow_lock:
+                        self.active_game = g_name
                     self.games.start_game(g_name, lang)
                     self._wait_for_tts_interrupt()
                     continue
