@@ -113,6 +113,13 @@ class CompanionDaemon:
         # Start voice wake detector
         self.wake_detector.start()
         
+        # Start Bluetooth speaker reconnect monitor thread if MAC is configured
+        self.bt_mac = self.config_manager.config.get("voice", {}).get("bluetooth_speaker_mac")
+        if self.bt_mac:
+            self.bt_thread = threading.Thread(target=self._bluetooth_monitor_loop, name="BluetoothMonitorLoop")
+            self.bt_thread.daemon = True
+            self.bt_thread.start()
+        
         # Start tracking and scheduler threads
         self.tracking_thread = threading.Thread(target=self._tracking_loop, name="FaceTrackingLoop")
         self.tracking_thread.daemon = True
@@ -304,6 +311,64 @@ class CompanionDaemon:
                 last_minute = current_time_str
                 
             time.sleep(5.0)
+
+    def _bluetooth_monitor_loop(self):
+        """Monitors and automatically reconnects the Bluetooth speaker."""
+        self.log(f"[Bluetooth] Background reconnect monitor started for MAC: {self.bt_mac}")
+        import subprocess
+        
+        last_connected_state = False
+        
+        # Don't run on Windows mock platform
+        if sys.platform.startswith("win"):
+            self.log("[Bluetooth Mock] Windows platform detected. Auto-reconnect monitor will run in dry mode.")
+            return
+
+        while self.is_running:
+            try:
+                # 1. Check if connected
+                cmd_info = f"bluetoothctl info {self.bt_mac}"
+                res = subprocess.run(cmd_info, shell=True, capture_output=True, text=True, timeout=5.0)
+                is_connected = "Connected: yes" in res.stdout
+                
+                if not is_connected:
+                    if last_connected_state:
+                        self.log("[Bluetooth] Speaker disconnected. Attempting automatic reconnection...")
+                    
+                    # 2. Attempt to connect
+                    cmd_connect = f'echo "connect {self.bt_mac}" | bluetoothctl'
+                    connect_res = subprocess.run(cmd_connect, shell=True, capture_output=True, text=True, timeout=10.0)
+                    
+                    # Verify if reconnection succeeded
+                    res_verify = subprocess.run(cmd_info, shell=True, capture_output=True, text=True, timeout=5.0)
+                    if "Connected: yes" in res_verify.stdout:
+                        self.log(f"[Bluetooth] Automatically reconnected to speaker {self.bt_mac}!")
+                        
+                        # Trigger PulseAudio echo cancellation reload
+                        self.log("[Bluetooth] Re-initializing PulseAudio Echo Cancellation modules...")
+                        subprocess.run("pulseaudio -k", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        time.sleep(2.0)
+                        
+                        # Re-load module manually if it didn't boot automatically
+                        usb_mic = "alsa_input.usb-GeneralPlus_USB_Audio_Device-00.mono-fallback"
+                        bt_sink = f"bluez_sink.{self.bt_mac.replace(':', '_')}.a2dp_sink"
+                        cmd_load = (
+                            f"pactl load-module module-echo-cancel source_name=aec_source sink_name=aec_sink "
+                            f"aec_method=webrtc channels=1 sink_master={bt_sink} source_master={usb_mic}"
+                        )
+                        subprocess.run(cmd_load, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        subprocess.run("pactl set-default-sink aec_sink", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        subprocess.run("pactl set-default-source aec_source", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        self.log("[Bluetooth] PulseAudio Echo Cancellation modules successfully re-loaded.")
+                        
+                        is_connected = True
+                
+                last_connected_state = is_connected
+                
+            except Exception as e:
+                pass
+                
+            time.sleep(10.0)
 
     def execute_task(self, task_str):
         """Executes scheduled tasks (speech, GPIO toggling)."""

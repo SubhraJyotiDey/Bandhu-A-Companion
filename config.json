@@ -87,7 +87,8 @@
     "wake_sensitivity": 0.5,
     "language": "en-US",
     "speech_threshold": 0.8,
-    "tts_provider": "edge-tts"
+    "tts_provider": "edge-tts",
+    "bluetooth_speaker_mac": "41:42:9D:09:4D:D3"
   },
   "zeroclaw": {
     "api_url": "http://127.0.0.1:42617/api/chat",
