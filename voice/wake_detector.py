@@ -35,24 +35,30 @@ class WakeWordDetector:
             import numpy as np
             from openwakeword.model import Model
             
-            model_name = self.config_manager.config.get("voice", {}).get("wake_word", "jarvis").lower()
+            wake_word_cfg = self.config_manager.config.get("voice", {}).get("wake_word", "jarvis")
+            # Support comma-separated wake words
+            model_names = [name.strip().lower() for name in wake_word_cfg.split(",") if name.strip()]
             
-            # Check if custom model file exists in voice/models/
-            custom_model_path = os.path.join(os.path.dirname(__file__), "models", f"{model_name}.onnx")
-            
-            if os.path.exists(custom_model_path):
-                print(f"[Wake Detector] Loading custom openWakeWord model from: {custom_model_path}")
-                self.oww_model = Model(wakeword_models=[custom_model_path], inference_framework="onnx")
-            else:
-                # Fallback to built-in openWakeWord models (alexa, hey_mycroft, ok_google, etc.)
-                print(f"[Wake Detector] Custom model not found at {custom_model_path}. Trying built-in openWakeWord models...")
+            model_paths_or_names = []
+            for model_name in model_names:
+                custom_model_path = os.path.join(os.path.dirname(__file__), "models", f"{model_name}.onnx")
+                if os.path.exists(custom_model_path):
+                    print(f"[Wake Detector] Loading custom openWakeWord model from: {custom_model_path}")
+                    model_paths_or_names.append(custom_model_path)
+                else:
+                    print(f"[Wake Detector] Custom model not found at {custom_model_path}. Loading built-in: {model_name}")
+                    model_paths_or_names.append(model_name)
+                    
+            if model_paths_or_names:
                 try:
-                    self.oww_model = Model(wakeword_models=[model_name], inference_framework="onnx")
-                    print(f"[Wake Detector] Loaded built-in openWakeWord model: {model_name}")
+                    self.oww_model = Model(wakeword_models=model_paths_or_names, inference_framework="onnx")
+                    print(f"[Wake Detector] Loaded openWakeWord models: {model_paths_or_names}")
                 except Exception as e:
-                    print(f"[Wake Detector Error] Failed to load built-in model {model_name}: {e}")
+                    print(f"[Wake Detector Error] Failed to load models {model_paths_or_names}: {e}")
                     print("[Wake Detector] Falling back to 'google' wake word engine.")
                     self.engine = "google"
+            else:
+                self.engine = "google"
                     
         except ImportError:
             print("[Wake Detector Warning] 'openwakeword' or 'numpy' is not installed in virtual environment.")
@@ -290,7 +296,8 @@ class WakeWordDetector:
                 
                 all_possible_matches = english_translit_matches + standard_fallbacks
                 if cfg_wake_word:
-                    all_possible_matches.append(cfg_wake_word)
+                    configured_words = [w.strip() for w in cfg_wake_word.split(",") if w.strip()]
+                    all_possible_matches.extend(configured_words)
                     
                 if "bn" in lang_lower:
                     all_possible_matches += bengali_matches
