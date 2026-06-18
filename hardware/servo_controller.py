@@ -46,6 +46,7 @@ class ServoController:
         self.manual_override = False # If true, manual controls from portal override everything
         self.face_tracking_active = False
         self.gesture_active = False
+        self.eyes_closed = False
         
         # Eyelid flutter state (triggered on mood transitions)
         self._flutter_active = False
@@ -392,7 +393,7 @@ class ServoController:
         if name in [
             "startup", "nod", "shake", "think", "shock", "scanning",
             "idle_roll_eyes", "idle_giggle", "idle_yawn", "idle_daydream",
-            "idle_insect_chase", "idle_shy_look", "idle_curious_scan"
+            "idle_insect_chase", "idle_shy_look", "idle_curious_scan", "idle_close_eyes"
         ]:
             threading.Thread(target=self._gesture_thread, args=(name,), daemon=True).start()
             return True
@@ -838,6 +839,22 @@ class ServoController:
                 self.target_pos["left_lower_eyelid"] = 120.0
                 self.target_pos["right_lower_eyelid"] = 120.0
                 time.sleep(0.3)
+
+            elif name == "idle_close_eyes":
+                # Close eyes completely
+                self.target_pos["left_upper_eyelid"] = 125.0
+                self.target_pos["right_upper_eyelid"] = 125.0
+                self.target_pos["left_lower_eyelid"] = 80.0
+                self.target_pos["right_lower_eyelid"] = 80.0
+                # Wait closed between 1.2 and 2.5 seconds
+                time.sleep(random.uniform(1.2, 2.5))
+                
+                # Restore to neutral baseline
+                self.target_pos["left_upper_eyelid"] = 60.0
+                self.target_pos["right_upper_eyelid"] = 60.0
+                self.target_pos["left_lower_eyelid"] = 120.0
+                self.target_pos["right_lower_eyelid"] = 120.0
+                time.sleep(0.3)
         finally:
             self.gesture_active = False
 
@@ -890,9 +907,9 @@ class ServoController:
         Upper lid: lower angle = more open, higher angle = more closed
         Lower lid: higher angle = more open, lower angle = more closed
         """
-        # Neutral positions (eyes fully open and relaxed)
-        lu_open, ll_open = 60.0, 120.0
-        ru_open, rl_open = 60.0, 120.0
+        # Neutral positions (mostly kept into the bored mood extent)
+        lu_open, ll_open = 92.0, 116.0
+        ru_open, rl_open = 92.0, 116.0
         
         # Adjust baselines depending on mood
         if self.mood == "happy":
@@ -917,6 +934,20 @@ class ServoController:
             ru_open, rl_open = 50.0, 130.0
             
         return lu_open, ll_open, ru_open, rl_open
+
+    def close_eyes(self):
+        """Closes the eyes fully and keeps them closed."""
+        self.eyes_closed = True
+        self.manual_override = False
+        self.gesture_active = False
+        self.set_target("yaw", 90.0)
+        self.set_target("pitch", 90.0)
+        print("[Servo] Eyes closed command received.")
+
+    def open_eyes(self):
+        """Opens the eyes and resumes normal gaze and blinks."""
+        self.eyes_closed = False
+        print("[Servo] Eyes opened command received.")
 
     def _get_blink_interval(self):
         """Returns a random blink interval that varies by mood (in seconds).
@@ -1092,7 +1123,7 @@ class ServoController:
                     idle_g = random.choice([
                         "idle_roll_eyes", "idle_giggle", "idle_yawn", 
                         "idle_daydream", "idle_insect_chase", "idle_shy_look", 
-                        "idle_curious_scan"
+                        "idle_curious_scan", "idle_close_eyes"
                     ])
                     self.play_gesture(idle_g)
                     next_idle_gesture_time = now + random.uniform(12.0, 24.0)
@@ -1264,7 +1295,7 @@ class ServoController:
             # ----------------------------------------------------------
             if not self.manual_override and not self.gesture_active:
                 # Trigger automatic random blink (with mood-variable interval)
-                if now > next_blink_time:
+                if now > next_blink_time and not getattr(self, "eyes_closed", False):
                     # 25% chance of double-blink (natural human pattern)
                     if random.random() < 0.25:
                         self.trigger_double_blink()
@@ -1272,40 +1303,46 @@ class ServoController:
                         self.trigger_blink()
                     next_blink_time = now + self._get_blink_interval()
                 
-                # Get normal baseline angles for this mood
-                lu_base, ll_base, ru_base, rl_base = self._get_eyelid_baselines()
-                
-                # Apply Pitch-tracking to eyelids (highly realistic animatronic effect!)
-                pitch_diff = self.current_pos["pitch"] - 90.0
-                gain_upper = 0.75
-                gain_lower = 0.35
-                
-                lu_target = lu_base + (pitch_diff * gain_upper)
-                ll_target = ll_base + (pitch_diff * gain_lower)
-                ru_target = ru_base + (pitch_diff * gain_upper)
-                rl_target = rl_base + (pitch_diff * gain_lower)
-                
-                # Add breathing rhythm to upper eyelids (slow sinusoidal oscillation)
-                breath = self._breathing_offset(self.run_time)
-                lu_target += breath
-                ru_target += breath
-                
-                # Apply eyelid flutter overrides (mood transitions)
-                if self._flutter_active:
-                    flutter_close = self._flutter_progress
-                    lu_target = lu_target + (115.0 - lu_target) * flutter_close
-                    ll_target = ll_target + (85.0 - ll_target) * flutter_close
-                    ru_target = ru_target + (115.0 - ru_target) * flutter_close
-                    rl_target = rl_target + (85.0 - rl_target) * flutter_close
-                
-                # Apply blink/wink overrides (takes priority over flutter)
-                if self.blink_active:
-                    if self.blink_side in ["both", "left"]:
-                        lu_target = lu_target + (125.0 - lu_target) * self.blink_progress
-                        ll_target = ll_target + (80.0 - ll_target) * self.blink_progress
-                    if self.blink_side in ["both", "right"]:
-                        ru_target = ru_target + (125.0 - ru_target) * self.blink_progress
-                        rl_target = rl_target + (80.0 - rl_target) * self.blink_progress
+                if getattr(self, "eyes_closed", False):
+                    lu_target = 125.0
+                    ll_target = 80.0
+                    ru_target = 125.0
+                    rl_target = 80.0
+                else:
+                    # Get normal baseline angles for this mood
+                    lu_base, ll_base, ru_base, rl_base = self._get_eyelid_baselines()
+                    
+                    # Apply Pitch-tracking to eyelids (highly realistic animatronic effect!)
+                    pitch_diff = self.current_pos["pitch"] - 90.0
+                    gain_upper = 0.75
+                    gain_lower = 0.35
+                    
+                    lu_target = lu_base + (pitch_diff * gain_upper)
+                    ll_target = ll_base + (pitch_diff * gain_lower)
+                    ru_target = ru_base + (pitch_diff * gain_upper)
+                    rl_target = rl_base + (pitch_diff * gain_lower)
+                    
+                    # Add breathing rhythm to upper eyelids (slow sinusoidal oscillation)
+                    breath = self._breathing_offset(self.run_time)
+                    lu_target += breath
+                    ru_target += breath
+                    
+                    # Apply eyelid flutter overrides (mood transitions)
+                    if self._flutter_active:
+                        flutter_close = self._flutter_progress
+                        lu_target = lu_target + (115.0 - lu_target) * flutter_close
+                        ll_target = ll_target + (85.0 - ll_target) * flutter_close
+                        ru_target = ru_target + (115.0 - ru_target) * flutter_close
+                        rl_target = rl_target + (85.0 - rl_target) * flutter_close
+                    
+                    # Apply blink/wink overrides (takes priority over flutter)
+                    if self.blink_active:
+                        if self.blink_side in ["both", "left"]:
+                            lu_target = lu_target + (125.0 - lu_target) * self.blink_progress
+                            ll_target = ll_target + (80.0 - ll_target) * self.blink_progress
+                        if self.blink_side in ["both", "right"]:
+                            ru_target = ru_target + (125.0 - ru_target) * self.blink_progress
+                            rl_target = rl_target + (80.0 - rl_target) * self.blink_progress
                 
                 # Curiosity perk-up: widen eyes briefly during snap phase
                 if self._curiosity_active and self._curiosity_phase == 0:
@@ -1457,5 +1494,6 @@ class ServoController:
             "mock": self.mock,
             "blink_active": self.blink_active,
             "blink_side": self.blink_side,
-            "gesture_active": self.gesture_active
+            "gesture_active": self.gesture_active,
+            "eyes_closed": getattr(self, "eyes_closed", False)
         }

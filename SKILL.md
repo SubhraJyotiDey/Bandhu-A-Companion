@@ -33,7 +33,7 @@ Trigger an instant eye expression for emotional punctuation.
 /home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute trigger_expression expression=<EXPRESSION>
 ```
 
-Valid expressions: `blink`, `wink_left`, `wink_right`
+Valid expressions: `blink`, `wink_left`, `wink_right`, `close_eyes`, `open_eyes`
 
 ### Play Gesture
 
@@ -88,7 +88,7 @@ Retrieve the companion's current status including mood, GPIO pin states, and sch
 - When the user asks to change mood, expression, or eyes — run the appropriate command immediately.
 - When the user asks to turn on/off the light — use `toggle_gpio` with pin `17`.
 - When the user asks to nod, shake head, or react — use `play_gesture`.
-- When the user asks to wink or blink — use `trigger_expression`.
+- When the user asks to wink, blink, sleep, wake up, close, or open eyes — use `trigger_expression` with `blink`, `wink_left`, `wink_right`, `close_eyes`, or `open_eyes`.
 - When the user asks about status — use `get_status`.
 - When the user asks to set a reminder or alarm — use `set_alarm`.
 - **Do not ask clarifying questions. Act immediately.**

@@ -14,7 +14,7 @@ command = "/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.
 
 [[tools]]
 name = "trigger_expression"
-description = "Trigger a direct instant eye expression. Expressions: blink, wink_left, wink_right."
+description = "Trigger a direct instant eye expression. Expressions: blink, wink_left, wink_right, close_eyes, open_eyes."
 command = "/home/pi/joyful-meitner/venv/bin/python /home/pi/joyful-meitner/main.py execute trigger_expression expression={{expression}}"
 
 [[tools]]

@@ -80,7 +80,7 @@ def handle_request(req):
                             "properties": {
                                 "expression": {
                                     "type": "string",
-                                    "enum": ["blink", "wink_left", "wink_right"],
+                                    "enum": ["blink", "wink_left", "wink_right", "close_eyes", "open_eyes"],
                                     "description": "The action to perform."
                                 }
                             },

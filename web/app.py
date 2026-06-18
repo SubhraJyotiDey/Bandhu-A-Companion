@@ -392,6 +392,10 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                     daemon.servos.trigger_wink("left")
                 elif expr == "wink_right":
                     daemon.servos.trigger_wink("right")
+                elif expr == "close_eyes":
+                    daemon.servos.close_eyes()
+                elif expr == "open_eyes":
+                    daemon.servos.open_eyes()
                 else:
                     return jsonify({"success": False, "error": "Invalid expression."})
                 return jsonify({"success": True, "message": f"Triggered expression '{expr}'."})

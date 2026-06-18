@@ -836,6 +836,10 @@
                         <button class="btn btn-pink" onclick="triggerExpression('wink_left')">Wink L</button>
                         <button class="btn btn-pink" onclick="triggerExpression('wink_right')">Wink R</button>
                     </div>
+                    <div class="expression-buttons" style="margin-top: 8px;">
+                        <button class="btn" id="btn-close-eyes" onclick="triggerExpression('close_eyes')">Close Eyes</button>
+                        <button class="btn" id="btn-open-eyes" onclick="triggerExpression('open_eyes')">Open Eyes</button>
+                    </div>
                     <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-secondary); margin-top: 15px; width: 100%; text-align: left; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">Predefined Gestures</div>
                     <div class="mood-buttons" style="margin-top: 5px; margin-bottom: 5px;">
                         <button class="btn btn-cyan" onclick="triggerGesture('startup')">Startup</button>
@@ -924,6 +928,27 @@
             const mock = document.getElementById("badge-mock");
             if (data.servo.mock) mock.classList.add("active-pink");
             else mock.classList.remove("active-pink");
+
+            // Close/Open eyes buttons styling
+            const btnClose = document.getElementById("btn-close-eyes");
+            const btnOpen = document.getElementById("btn-open-eyes");
+            if (btnClose && btnOpen) {
+                if (data.servo.eyes_closed) {
+                    btnClose.style.background = "rgba(255, 0, 127, 0.35)";
+                    btnClose.style.borderColor = "rgba(255, 0, 127, 0.5)";
+                    btnClose.style.color = "#ff007f";
+                    btnOpen.style.background = "";
+                    btnOpen.style.borderColor = "";
+                    btnOpen.style.color = "";
+                } else {
+                    btnClose.style.background = "";
+                    btnClose.style.borderColor = "";
+                    btnClose.style.color = "";
+                    btnOpen.style.background = "rgba(0, 242, 254, 0.35)";
+                    btnOpen.style.borderColor = "rgba(0, 242, 254, 0.5)";
+                    btnOpen.style.color = "#00f2fe";
+                }
+            }
 
             // Mood orb
             const orb = document.getElementById("mood-orb");
