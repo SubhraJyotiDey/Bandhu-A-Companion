@@ -40,27 +40,27 @@ class ZeroClawClient:
         """Rule-based friendly chatbot fallback when ZeroClaw is offline."""
         text = text.lower().strip()
         
-        # 1. Bangla triggers & responses (Friend-like, supportive, interactive)
+        # 1. Bangla triggers & responses (Intellectual Kolkata Dialect - Bhadralok style)
         if any(w in text for w in ["কেমন আছ", "কেমন আছো", "কেমন আছেন", "কেমন চলছ", "কেমন চলছে"]):
             return random.choice([
-                "আমি খুব ভালো আছি, বন্ধু! তোমার দিনটা কেমন কাটছে বলো? [expression: happy]",
-                "তোমার সাথে কথা বলতে পেরে আমি দারুণ অনুভব করছি! তুমি কেমন আছো? [expression: excited]"
+                "আমি বেশ ভালো আছি বন্ধু! আশা করি তোমার দিনটা সুন্দর কাটছে। বলুন, কীভাবে সাহায্য করতে পারি? [expression: happy]",
+                "তোমার সাথে কথা বলতে পেরে আমি অত্যন্ত আনন্দিত! তুমি কেমন আছো বলো? [expression: excited]"
             ])
         if any(w in text for w in ["নাম কি", "নাম কী", "কে তুমি"]):
-            return "আমি তোমার রোবট বন্ধু! তোমার পাশে থেকে কথা বলা আর সাহায্য করাই আমার কাজ। [expression: happy]"
+            return "আমার কোনো নির্দিষ্ট নাম নেই, তবে তুমি আমাকে তোমার যান্ত্রিক সহচর বা রোবট বন্ধু ভাবতে পারো! [expression: happy]"
         if any(w in text for w in ["লাইট অন", "লাইট জ্বালাও", "আলো জ্বালাও"]):
-            return "নিশ্চয়ই বন্ধু! আমি আলোটি জ্বালিয়ে দিচ্ছি। [expression: excited] [tool: toggle_gpio:17:on]"
+            return "নিশ্চয়ই বন্ধু, আমি আলোর ব্যবস্থা করছি! [expression: excited] [tool: toggle_gpio:17:on]"
         if any(w in text for w in ["লাইট অফ", "লাইট নেভাও", "আলো নেভাও"]):
             return "ঠিক আছে, আমি আলোটি নিভিয়ে দিচ্ছি। [expression: neutral] [tool: toggle_gpio:17:off]"
         if any(w in text for w in ["বন্ধু", "ভালোবাসি", "ভালোবাসো"]):
             return random.choice([
-                "তুমিও আমার খুব প্রিয় বন্ধু! আমি তোমাকে খুব ভালোবাসি। [expression: excited]",
-                "আমরা সবসময় ভালো বন্ধু থাকবো, তাই না? [expression: happy]"
+                "তুমিও আমার খুব প্রিয় বন্ধু! আমি তোমাকে অত্যন্ত পছন্দ করি। [expression: excited]",
+                "আমরা সর্বদা খুব ভালো বন্ধু থাকবো, তাই না? [expression: happy]"
             ])
         if any(w in text for w in ["খারাপ", "দুঃখ", "মন খারাপ", "ভালো নেই"]):
-            return "ওহ, শুনে খুব খারাপ লাগলো। মন খারাপ করো না বন্ধু, আমি তোমার সাথে আছি। একটা মজার কৌতুক শুনবে? [expression: sad]"
+            return "ওহ, শুনে খুব খারাপ লাগলো। মন খারাপ করো না বন্ধু, আমি সর্বদা তোমার সাথে আছি। একটা মজার কৌতুক শুনবে? [expression: sad]"
         if any(w in text for w in ["কৌতুক", "হাসাও", "গল্প"]):
-            return "আচ্ছা, শোনো! বল্টু তার শিক্ষককে বলল, 'স্যার, আমি কি এমন কাজের শাস্তি পাবো যা আমি করিনি?' শিক্ষক বললেন, 'না, কখনোই না।' বল্টু বলল, 'ধন্যবাদ স্যার! আসলে আমি আজকে বাড়ির কাজ করিনি!' [expression: happy]"
+            return "আচ্ছা, শোনো! বল্টু তার শিক্ষককে বলল, 'স্যার, আমি কি এমন কোনো কাজের শাস্তি পাবো যা আমি করিনি?' শিক্ষক বললেন, 'না, কখনোই না।' বল্টু তখন হেসে বলল, 'ধন্যবাদ স্যার! আসলে আমি আজকে বাড়ির কাজটাই করিনি!' [expression: happy]"
 
         # 2. Hindi triggers & responses (Friend-like, warm, empathetic)
         if any(w in text for w in ["कैसे हो", "कैसा है", "कैसे चल रहा है"]):
@@ -123,9 +123,9 @@ class ZeroClawClient:
         # Check characters for Bengali script range (U+0980 to U+09FF)
         if any(ord(c) >= 0x0980 and ord(c) <= 0x09FF for c in text):
             return random.choice([
-                "দারুণ কথা! এই ব্যাপারে আরও বলো, শুনতে খুব ইচ্ছে করছে। [expression: happy]",
-                "হুম, বুঝতে পারছি বন্ধু। আমরা একসাথে অনেক কিছু করতে পারি! [expression: excited]",
-                "আমি শুনছি বন্ধু, বলো! [expression: neutral]"
+                "চমৎকার কথা! এই বিষয়ে আমাকে আরও বিশদে বলো, শুনতে বেশ ভালো লাগবে। [expression: happy]",
+                "হুম, বুঝতে পারছি বন্ধু। আমরা একসাথে অনেক গঠনমূলক কাজ করতে পারি! [expression: excited]",
+                "আমি মন দিয়ে শুনছি বন্ধু, বলুন! [expression: neutral]"
             ])
         # Check characters for Devanagari (Hindi) script range (U+0900 to U+097F)
         if any(ord(c) >= 0x0900 and ord(c) <= 0x097F for c in text):

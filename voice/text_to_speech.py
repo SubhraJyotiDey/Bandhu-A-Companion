@@ -293,17 +293,17 @@ class TTSManager:
             print("[TTS Cache Warning] edge_tts is missing. Skipping cache generation.")
             return
 
-        # Fillers definition
+        # Fillers definition (Kolkata dialect / Intellectual phrasing)
         fillers = {
             "en": ["Hmm, let me think...", "Okay, let's see...", "Right, let me check..."],
-            "bn": ["হুম, আচ্ছা...", "ভাবতে দাও...", "একটু দেখছি..."],
+            "bn": ["হুম, ভাবনাচিন্তা করতে দাও কিছুটা...", "আচ্ছা, বিষয়টি একটু তলিয়ে দেখি...", "ঠিক আছে, আমি এক মিনিট দেখছি..."],
             "hi": ["हूँ, सोचने दो...", "अच्छा, देखता हूँ...", "एक मिनट..."]
         }
         
-        # System phrases definition
+        # System phrases definition (Kolkata dialect / Intellectual phrasing)
         system_phrases = {
             "en": ["Yes, friend?", "Goodbye!", "Understood.", "I'm sorry, I couldn't reach my brain."],
-            "bn": ["জি বন্ধু?", "আবার দেখা হবে!", "বুঝতে পেরেছি।", "দুঃখিত, আমি বুঝতে পারিনি।"],
+            "bn": ["নমস্কার বন্ধু, বলুন?", "নমস্কার বন্ধু, আবার দেখা হবে!", "হ্যাঁ বন্ধু, আমি বুঝতে পেরেছি।", "দুঃখিত বন্ধু, আমি বিষয়টি ঠিক বুঝতে পারলাম না।", "দুঃখিত বন্ধু, আমি আমার মস্তিষ্কের সাথে সংযোগ স্থাপন করতে পারছি না।"],
             "hi": ["हाँ दोस्त?", "फिर मिलेंगे!", "समझ गया।", "माफ़ कीजिये, मैं समझ नहीं पाया।"]
         }
 

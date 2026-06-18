@@ -727,7 +727,7 @@ class CompanionDaemon:
         time.sleep(0.4)
         
         lang = self.config_manager.config.get("voice", {}).get("language", "en-US")
-        greeting = "Yes, friend?" if "en" in lang else "জি বন্ধু?" if "bn" in lang else "हाँ दोस्त?"
+        greeting = "Yes, friend?" if "en" in lang else "নমস্কার বন্ধু, বলুন?" if "bn" in lang else "हाँ दोस्त?"
         self.tts.speak(greeting, lang)
         
         # Wait for greeting to finish, but allow interrupt!
