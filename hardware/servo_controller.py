@@ -1504,8 +1504,8 @@ class ServoController:
                     self._detach_servo(name)
                 else:
                     self._write_servo_angle(name, new_pos)
-                    
-                time.sleep(0.003) # Stagger writes to minimize power rail sag and servo noise
+                    if not self.mock:
+                        time.sleep(0.003) # Stagger writes to minimize power rail sag and servo noise
                 
             time.sleep(0.01) # ~100Hz control loop
 

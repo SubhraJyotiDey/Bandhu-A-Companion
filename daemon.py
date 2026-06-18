@@ -238,6 +238,9 @@ class CompanionDaemon:
         # Sleep mode status tracking
         self.sleep_active = False
         
+        # Volume reconnect/monitor cache
+        self.sink_volumes = ThreadSafeDict()
+        
         # Control flags
         self.is_running = False
         self.voice_listening_active = False
@@ -312,6 +315,11 @@ class CompanionDaemon:
             self.bt_thread = threading.Thread(target=self._bluetooth_monitor_loop, name="BluetoothMonitorLoop")
             self.bt_thread.daemon = True
             self.bt_thread.start()
+            
+        # Start Volume reconnect/monitor loop in background
+        self.volume_thread = threading.Thread(target=self._volume_monitor_loop, name="VolumeMonitorLoop")
+        self.volume_thread.daemon = True
+        self.volume_thread.start()
         
         # Start tracking and scheduler threads
         self.tracking_thread = threading.Thread(target=self._tracking_loop, name="FaceTrackingLoop")
@@ -592,6 +600,37 @@ class CompanionDaemon:
                 self.log(f"[Bluetooth Error] Reconnect check exception: {e}")
                 
             time.sleep(10.0)
+
+    def _volume_monitor_loop(self):
+        """Monitors PulseAudio sink volumes in the background to avoid blocking Flask api calls."""
+        self.log("[Volume] Background volume monitor started.")
+        if sys.platform.startswith("win"):
+            self.log("[Volume Mock] Windows platform detected. Volume monitor running in dry mode.")
+            return
+
+        import subprocess
+        import re
+
+        sinks_to_query = [
+            "bluez_sink.41_42_9D_09_4D_D3.a2dp_sink",
+            "alsa_output.usb-GeneralPlus_USB_Audio_Device-00.analog-stereo",
+            "aec_sink"
+        ]
+
+        while self.is_running:
+            for sink in sinks_to_query:
+                try:
+                    result = subprocess.run(
+                        ["pactl", "get-sink-volume", sink],
+                        capture_output=True, text=True, timeout=1.5
+                    )
+                    if result.returncode == 0:
+                        match = re.search(r'(\d+)%', result.stdout)
+                        if match:
+                            self.sink_volumes[sink] = int(match.group(1))
+                except Exception as e:
+                    pass
+            time.sleep(2.0)
 
     def execute_task(self, task_str):
         """Executes scheduled tasks (speech, GPIO toggling)."""

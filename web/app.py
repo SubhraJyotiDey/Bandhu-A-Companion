@@ -79,29 +79,8 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
 
     @app.route("/api/status", methods=["GET"])
     def get_status():
-        # Read per-sink volumes from PulseAudio (non-blocking, returns {} on Windows)
-        sink_volumes = {}
-        if not sys.platform.startswith("win"):
-            import subprocess
-            sinks_to_query = [
-                "bluez_sink.41_42_9D_09_4D_D3.a2dp_sink",
-                "alsa_output.usb-GeneralPlus_USB_Audio_Device-00.analog-stereo",
-                "aec_sink"
-            ]
-            for sink in sinks_to_query:
-                try:
-                    result = subprocess.run(
-                        ["pactl", "get-sink-volume", sink],
-                        capture_output=True, text=True, timeout=2
-                    )
-                    if result.returncode == 0:
-                        # Parse output like: "Volume: front-left: 65536 / 100% / ..."
-                        import re
-                        match = re.search(r'(\d+)%', result.stdout)
-                        if match:
-                            sink_volumes[sink] = int(match.group(1))
-                except Exception:
-                    pass
+        # Read per-sink volumes from PulseAudio (cached asynchronously in daemon)
+        sink_volumes = daemon.sink_volumes.to_dict() if hasattr(daemon, "sink_volumes") else {}
 
         status = {
             "servo": {**daemon.servos.get_state(), "blink_active": daemon.servos.blink_active, "blink_side": daemon.servos.blink_side},

@@ -41,11 +41,19 @@ class STTManager:
         self.recognizer = None
         self.microphone = None
         self.vosk_available = False
+        self.pyaudio_instance = None
         
         # Cache loaded Vosk models to avoid reloading on every call
         self._vosk_model_cache = {}
         
         self._init_speech_recognition()
+
+    def __del__(self):
+        if hasattr(self, "pyaudio_instance") and self.pyaudio_instance is not None:
+            try:
+                self.pyaudio_instance.terminate()
+            except Exception:
+                pass
 
     def _init_speech_recognition(self):
         """Initializes the SpeechRecognition and Vosk objects. Fallback if libraries are missing."""
@@ -270,7 +278,9 @@ class STTManager:
         CHUNK = 1024
         RATE = 16000
         
-        p = pyaudio.PyAudio()
+        if self.pyaudio_instance is None:
+            self.pyaudio_instance = pyaudio.PyAudio()
+        p = self.pyaudio_instance
         stream = None
         opened_rate = RATE
         
@@ -291,7 +301,6 @@ class STTManager:
                 continue
                 
         if not stream:
-            p.terminate()
             raise RuntimeError("Vosk failed to open PyAudio input stream at any supported rate.")
             
         print(f"[STT Vosk] Listening (rate: {opened_rate} Hz)...")
@@ -350,4 +359,3 @@ class STTManager:
                     stream.close()
                 except Exception:
                     pass
-            p.terminate()
