@@ -153,18 +153,28 @@ class ServoController:
         if not cfg:
             return
             
-        # 1. Apply inversion
+        # 1. Apply safety clamps to the logical angle before inversion
+        if self.manual_override or getattr(self, "calibration_active", False):
+            # Relax limits during active calibration / manual alignment to allow finding physical bounds
+            min_lim = 15.0
+            max_lim = 165.0
+        else:
+            min_lim = cfg.get("min_angle", 40.0)
+            max_lim = cfg.get("max_angle", 140.0)
+            
+        angle_clamped = max(min_lim, min(max_lim, angle))
+        
+        # 2. Apply inversion
+        angle_inverted = angle_clamped
         if cfg.get("inverted", False):
             center = cfg.get("center_angle", 90.0)
-            angle = center - (angle - center)
+            angle_inverted = center - (angle_clamped - center)
             
-        # 2. Apply trim offset
-        angle_calibrated = angle + cfg.get("trim", 0.0)
+        # 3. Apply trim offset to the final physical output angle
+        angle_final = angle_inverted + cfg.get("trim", 0.0)
         
-        # 3. Apply safety clamps
-        min_lim = cfg.get("min_angle", 40.0)
-        max_lim = cfg.get("max_angle", 140.0)
-        angle_final = max(min_lim, min(max_lim, angle_calibrated))
+        # Ensure raw output angle is within safe servo boundaries
+        angle_final = max(5.0, min(175.0, angle_final))
         
         if self.mock:
             # On mock mode, we do not log every tick to prevent terminal flooding
