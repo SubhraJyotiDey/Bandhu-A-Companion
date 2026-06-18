@@ -25,6 +25,12 @@ class WakeWordDetector:
     def _init_openwakeword(self):
         try:
             import openwakeword
+            # Automatically download base preprocessor models if missing
+            try:
+                openwakeword.utils.download_models()
+            except Exception as e:
+                print(f"[Wake Detector Warning] Failed to run download_models(): {e}")
+                
             import numpy as np
             from openwakeword.model import Model
             
