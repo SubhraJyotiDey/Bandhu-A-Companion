@@ -109,8 +109,10 @@ class WakeWordDetector:
         stream = None
         
         try:
-            # oww_model.prediction_accumulators keys are the names of the loaded models (filenames or built-ins)
-            model_keys = list(self.oww_model.prediction_accumulators.keys())
+            # Run a dummy prediction to retrieve loaded model keys regardless of internal openWakeWord version attributes
+            dummy_frame = np.zeros(CHUNK, dtype=np.int16)
+            initial_prediction = self.oww_model.predict(dummy_frame)
+            model_keys = list(initial_prediction.keys())
             print(f"[Wake Detector] Monitoring for custom wake words: {model_keys}")
             
             while self.is_listening:
