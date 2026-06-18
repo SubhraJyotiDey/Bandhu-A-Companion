@@ -502,17 +502,20 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
 
     @app.route("/api/system/update", methods=["POST"])
     def system_update():
-        """Pull latest codebase changes from Git remote."""
+        """Pull latest codebase changes from Git remote in background thread."""
         import subprocess
-        daemon.log("[System] OTA Update triggered. Pulling code from git...")
-        try:
-            res = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=15.0)
-            out = res.stdout + "\n" + res.stderr
-            daemon.log(f"[System] Git pull result:\n{out}")
-            return jsonify({"success": res.returncode == 0, "output": out})
-        except Exception as e:
-            daemon.log(f"[System Error] Git pull failed: {e}")
-            return jsonify({"success": False, "error": str(e)})
+        daemon.log("[System] OTA Update triggered. Pulling code from git in background...")
+        
+        def run_update():
+            try:
+                res = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=15.0)
+                out = res.stdout + "\n" + res.stderr
+                daemon.log(f"[System] Git pull result:\n{out}")
+            except Exception as e:
+                daemon.log(f"[System Error] Git pull failed: {e}")
+                
+        threading.Thread(target=run_update, daemon=True).start()
+        return jsonify({"success": True, "message": "OTA update initiated in background. Check console logs."})
 
     @app.route("/api/system/restart", methods=["POST"])
     def system_restart():

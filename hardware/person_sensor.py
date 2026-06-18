@@ -38,6 +38,8 @@ class PersonSensor:
         self.bus_num = self.config.get("face_tracking", {}).get("i2c_bus", 1)
         self.sensor_address = self.config.get("face_tracking", {}).get("sensor_address", 0x62)
         
+        self.lock = threading.Lock()
+        
         # Live state
         self.faces = []
         self.face_detected = False
@@ -87,27 +89,28 @@ class PersonSensor:
 
     def set_mock_face(self, x, y, size=40, detected=True):
         """Web portal interface to inject face coordinates when in mock mode."""
-        if not detected:
-            self.mock_faces = []
-            return
+        with self.lock:
+            if not detected:
+                self.mock_faces = []
+                return
+                
+            # Create a bounding box centered around x, y (0-255 grid)
+            half_sz = size // 2
+            box_left = max(0, int(x - half_sz))
+            box_right = min(255, int(x + half_sz))
+            box_top = max(0, int(y - half_sz))
+            box_bottom = min(255, int(y + half_sz))
             
-        # Create a bounding box centered around x, y (0-255 grid)
-        half_sz = size // 2
-        box_left = max(0, int(x - half_sz))
-        box_right = min(255, int(x + half_sz))
-        box_top = max(0, int(y - half_sz))
-        box_bottom = min(255, int(y + half_sz))
-        
-        self.mock_faces = [{
-            "box_confidence": 99,
-            "box_left": box_left,
-            "box_top": box_top,
-            "box_right": box_right,
-            "box_bottom": box_bottom,
-            "id_confidence": 0,
-            "id": -1,
-            "is_facing": 1
-        }]
+            self.mock_faces = [{
+                "box_confidence": 99,
+                "box_left": box_left,
+                "box_top": box_top,
+                "box_right": box_right,
+                "box_bottom": box_bottom,
+                "id_confidence": 0,
+                "id": -1,
+                "is_facing": 1
+            }]
 
     def _read_loop(self):
         """Reads at ~10Hz (sensor refresh rate is 7Hz)."""
@@ -118,9 +121,10 @@ class PersonSensor:
                 
             if self.mock:
                 # Read from mock faces injected via portal
-                self.faces = list(self.mock_faces)
-                self.face_detected = len(self.faces) > 0
-                self.last_read_time = time.time()
+                with self.lock:
+                    self.faces = list(self.mock_faces)
+                    self.face_detected = len(self.faces) > 0
+                    self.last_read_time = time.time()
             else:
                 # Read from physical I2C device
                 try:
@@ -148,6 +152,7 @@ class PersonSensor:
                         temp_faces = []
                         
                         # Loop through detected faces (up to max 4)
+                        min_confidence = self.config_manager.config.get("face_tracking", {}).get("min_confidence", 40)
                         for i in range(min(num_faces, PERSON_SENSOR_FACE_MAX)):
                             offset = 4 + (i * 8)
                             face = {
@@ -161,29 +166,35 @@ class PersonSensor:
                                 "is_facing": unpacked[offset + 7]
                             }
                             # Only include faces with reasonable confidence
-                            if face["box_confidence"] > 40:
+                            if face["box_confidence"] > min_confidence:
                                 temp_faces.append(face)
                                 
-                        self.faces = temp_faces
-                        self.face_detected = len(self.faces) > 0
-                        self.last_read_time = time.time()
+                        with self.lock:
+                            self.faces = temp_faces
+                            self.face_detected = len(self.faces) > 0
+                            self.last_read_time = time.time()
                 except Exception as e:
                     # I2C read error, standard for floating pins or noise
-                    self.face_detected = False
-                    self.faces = []
+                    with self.lock:
+                        self.face_detected = False
+                        self.faces = []
                     
             time.sleep(0.1) # 10Hz read frequency
 
     def get_primary_face(self):
         """Returns the active tracked face, alternating attention if multiple are present."""
-        if not self.face_detected or not self.faces:
+        with self.lock:
+            face_detected = self.face_detected
+            faces = list(self.faces)
+            
+        if not face_detected or not faces:
             return None
             
         # Sort faces by bounding box area (largest/closest first)
         def get_area(f):
             return (f["box_right"] - f["box_left"]) * (f["box_bottom"] - f["box_top"])
             
-        sorted_faces = sorted(self.faces, key=get_area, reverse=True)
+        sorted_faces = sorted(faces, key=get_area, reverse=True)
         
         # Track switching state
         if not hasattr(self, "_last_switch_time"):

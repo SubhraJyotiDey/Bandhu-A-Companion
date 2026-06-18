@@ -31,8 +31,8 @@ class ZeroClawClient:
                 if reply:
                     return reply
         except Exception as e:
-            # Quietly log that we are falling back to the local mock brain
-            pass
+            # Log that we are falling back to the local mock brain
+            print(f"[AgentClient Error] API request failed: {e}. Falling back to local mock brain.")
             
         return self._generate_mock_response(message_text)
 

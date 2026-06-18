@@ -91,6 +91,7 @@ class ServoController:
             
         # Thread handles
         self.loop_thread = None
+        self.lock = threading.Lock()
         
     def _init_hardware(self):
         print(f"[Servo] Initializing physical hardware in '{self.servo_mode}' mode...")
@@ -254,7 +255,8 @@ class ServoController:
     def set_target(self, name, angle):
         """Exposed method to set individual targets clamped to absolute servo limits."""
         if name in self.target_pos:
-            self.target_pos[name] = max(0.0, min(180.0, float(angle)))
+            with self.lock:
+                self.target_pos[name] = max(0.0, min(180.0, float(angle)))
 
     # ------------------------------------------------------------------
     # BLINK & WINK SYSTEM
@@ -1097,6 +1099,7 @@ class ServoController:
         next_idle_gesture_time = time.time() + random.uniform(10.0, 20.0)
         
         while self.is_running:
+            self.lock.acquire()
             now = time.time()
             dt = now - last_time
             last_time = now
@@ -1507,20 +1510,22 @@ class ServoController:
                     if not self.mock:
                         time.sleep(0.003) # Stagger writes to minimize power rail sag and servo noise
                 
+            self.lock.release()
             time.sleep(0.01) # ~100Hz control loop
 
     def get_state(self):
         """Returns the current state for reporting to portal."""
-        return {
-            "current": {name: round(self.current_pos[name], 1) for name in self.names},
-            "target": {name: round(self.target_pos[name], 1) for name in self.names},
-            "mood": self.mood,
-            "extroversion": self.extroversion,
-            "face_tracking": self.face_tracking_active,
-            "manual_override": self.manual_override,
-            "mock": self.mock,
-            "blink_active": self.blink_active,
-            "blink_side": self.blink_side,
-            "gesture_active": self.gesture_active,
-            "eyes_closed": getattr(self, "eyes_closed", False)
-        }
+        with self.lock:
+            return {
+                "current": {name: round(self.current_pos[name], 1) for name in self.names},
+                "target": {name: round(self.target_pos[name], 1) for name in self.names},
+                "mood": self.mood,
+                "extroversion": self.extroversion,
+                "face_tracking": self.face_tracking_active,
+                "manual_override": self.manual_override,
+                "mock": self.mock,
+                "blink_active": self.blink_active,
+                "blink_side": self.blink_side,
+                "gesture_active": self.gesture_active,
+                "eyes_closed": getattr(self, "eyes_closed", False)
+            }
