@@ -803,6 +803,29 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 )
                 return jsonify({"success": True, "message": status_info})
                 
+            elif tool == "start_game":
+                game_name = args.get("game")
+                if not game_name or game_name not in ["riddle", "word_chain", "guess_number"]:
+                    return jsonify({"success": False, "error": f"Invalid game '{game_name}'."})
+                lang = daemon.config_manager.config.get("voice", {}).get("language", "bn-IN")
+                daemon.voice_listening_active = True
+                prompt = daemon.games.start_game(game_name, lang)
+                daemon.active_game = game_name
+                return jsonify({"success": True, "message": f"Started game '{game_name}'. Companion asked: '{prompt}'"})
+                
+            elif tool == "stop_game":
+                lang = daemon.config_manager.config.get("voice", {}).get("language", "bn-IN")
+                prompt = daemon.games.stop_game(lang)
+                daemon.active_game = None
+                return jsonify({"success": True, "message": f"Stopped game. Companion said: '{prompt}'"})
+                
+            elif tool == "get_game_status":
+                active_game = daemon.games.active_game
+                score = daemon.games.score
+                round_num = daemon.games.round_num
+                status_msg = f"Active Game: {active_game or 'None'}\nScore: {score}\nRound: {round_num}"
+                return jsonify({"success": True, "message": status_msg})
+                
         except Exception as ex:
             return jsonify({"success": False, "error": f"Exception in tool execution: {ex}"})
             

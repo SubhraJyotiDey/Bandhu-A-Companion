@@ -150,6 +150,37 @@ def handle_request(req):
                             "type": "object",
                             "properties": {}
                         }
+                    },
+                    {
+                        "name": "start_game",
+                        "description": "Start an interactive vocal game on the companion robot.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "game": {
+                                    "type": "string",
+                                    "enum": ["riddle", "word_chain", "guess_number"],
+                                    "description": "The name of the game to start: 'riddle' (ধাঁধা), 'word_chain' (শব্দ-শৃঙ্খল), or 'guess_number' (সংখ্যা খোঁজার খেলা)."
+                                }
+                            },
+                            "required": ["game"]
+                        }
+                    },
+                    {
+                        "name": "stop_game",
+                        "description": "Stop the currently active vocal game.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {}
+                        }
+                    },
+                    {
+                        "name": "get_game_status",
+                        "description": "Retrieve the current game status, including active game name, current round, and user's score.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {}
+                        }
                     }
                 ]
             }
