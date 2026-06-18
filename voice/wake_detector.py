@@ -100,8 +100,36 @@ class WakeWordDetector:
                 except Exception as e:
                     text = ""
                 
-                # Check wake word
-                if cfg_wake_word in text or "claw" in text or "hello" in text or "friend" in text or "wake" in text:
+                # Check wake word matches
+                is_wake_triggered = False
+                
+                # Matches for "bandhu" / "bondhu" (Bengali/Hindi for Friend)
+                bengali_matches = ["বন্ধু", "বন্ধুত্ব", "বন্ড", "বিন্দু", "বন্তু"]
+                hindi_matches = ["बंधु", "बन्धु", "बन्दु", "बन्दू", "बांदु", "बंदू"]
+                english_translit_matches = ["bandhu", "bondhu", "bando", "bandoo", "bambu", "bamboo", "bond"]
+                
+                # Standard fallback triggers
+                standard_fallbacks = ["claw", "hello", "friend", "wake", "wake word"]
+                
+                # Combine all possible matches to trigger
+                all_possible_matches = english_translit_matches + standard_fallbacks
+                if cfg_wake_word:
+                    all_possible_matches.append(cfg_wake_word)
+                    
+                if "bn" in lang_lower:
+                    all_possible_matches += bengali_matches
+                elif "hi" in lang_lower:
+                    all_possible_matches += hindi_matches
+                else:
+                    # In English mode, also check native scripts just in case Google STT transcribes it directly
+                    all_possible_matches += bengali_matches + hindi_matches
+                    
+                for match in all_possible_matches:
+                    if match and match in text:
+                        is_wake_triggered = True
+                        break
+                        
+                if is_wake_triggered:
                     print(f"[Wake Detector] TRIGGERED! Heard wake word match in: \"{text}\"")
                     self.wake_callback()
                     time.sleep(5)
