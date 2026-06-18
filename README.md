@@ -186,3 +186,64 @@ You are capable of agentic tasks in the room:
 
 ### Step 3: Run ZeroClaw
 Run ZeroClaw normally. It will launch our stdio MCP server, allowing the AI agent to call the tools in real-time during conversations!
+
+---
+
+## 5. Auto-Start on Boot (systemd Services)
+
+To have the companion daemon and ZeroClaw start automatically when the Raspberry Pi boots, we provide ready-made `systemd` service files.
+
+### Step 1: Configure the ZeroClaw Service
+Open `services/bandhu-zeroclaw.service` and update the `ExecStart` line with your actual ZeroClaw startup command:
+```ini
+# Replace this placeholder with your real command:
+ExecStart=/usr/local/bin/zeroclaw serve --port 42617
+```
+
+### Step 2: Run the Installer
+```bash
+cd /home/pi/joyful-meitner
+sudo bash services/install-services.sh
+```
+This will:
+1. Copy both service files to `/etc/systemd/system/`
+2. Enable them to start on every boot
+3. Start them immediately
+4. Print their current status
+
+### Step 3: Verify
+Check that both services are running:
+```bash
+sudo systemctl status bandhu-companion
+sudo systemctl status bandhu-zeroclaw
+```
+
+View live logs:
+```bash
+# Companion daemon logs (Flask, servos, voice)
+journalctl -u bandhu-companion -f
+
+# ZeroClaw AI server logs
+journalctl -u bandhu-zeroclaw -f
+```
+
+### Managing Services
+```bash
+# Stop a service
+sudo systemctl stop bandhu-companion
+
+# Restart a service
+sudo systemctl restart bandhu-companion
+
+# Disable auto-start (service won't start on next boot)
+sudo systemctl disable bandhu-companion
+
+# Re-enable auto-start
+sudo systemctl enable bandhu-companion
+```
+
+### Uninstalling
+To completely remove the services:
+```bash
+sudo bash services/uninstall-services.sh
+```

@@ -1,0 +1,41 @@
+[Unit]
+Description=ZeroClaw AI Agent Server (Bandhu Brain Backend)
+Documentation=https://github.com/SubhraJyotiDey/Bandhu-A-Companion
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi
+
+# ============================================================
+# IMPORTANT: Replace the ExecStart line below with your actual
+# ZeroClaw startup command. Examples:
+#
+#   ExecStart=/usr/local/bin/zeroclaw serve --port 42617
+#   ExecStart=/home/pi/.zeroclaw/bin/zeroclaw serve
+#   ExecStart=/home/pi/zeroclaw-venv/bin/python -m zeroclaw serve
+#
+# The companion daemon expects ZeroClaw at:
+#   http://127.0.0.1:42617/api/chat
+# ============================================================
+ExecStart=/usr/local/bin/zeroclaw serve --port 42617
+
+# Environment
+Environment=HOME=/home/pi
+
+# Restart policy: auto-restart on crash with a 5-second cooldown
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bandhu-zeroclaw
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,35 @@
+[Unit]
+Description=Bandhu Companion Daemon (Servo Eye + Voice + Web Portal)
+Documentation=https://github.com/SubhraJyotiDey/Bandhu-A-Companion
+After=network-online.target sound.target
+Wants=network-online.target
+# Start after ZeroClaw if it's installed (soft dependency — won't fail if missing)
+After=bandhu-zeroclaw.service
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/joyful-meitner
+
+# Use the project's virtual environment Python
+ExecStart=/home/pi/joyful-meitner/venv/bin/python main.py run
+
+# Environment: ensure PulseAudio is accessible for TTS/audio playback
+Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=HOME=/home/pi
+
+# Restart policy: auto-restart on crash with a 5-second cooldown
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Logging: all stdout/stderr goes to journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bandhu-companion
+
+[Install]
+WantedBy=multi-user.target
