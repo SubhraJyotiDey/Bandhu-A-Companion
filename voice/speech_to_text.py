@@ -3,6 +3,35 @@ import time
 import os
 import json
 
+# Directory where manually-downloaded Vosk models are stored
+# Expected structure: voice/models/vosk-<lang>/  (e.g. vosk-en, vosk-hi, vosk-bn)
+VOSK_MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+
+# Vosk language code mapping and download URLs
+VOSK_LANG_MAP = {
+    "en": {
+        "code": "en-us",
+        "auto_download": True,   # Vosk can auto-download this
+        "model_url": "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip",
+        "dir_name": "vosk-en",
+    },
+    "hi": {
+        "code": "hi",
+        "auto_download": True,   # Vosk can auto-download this
+        "model_url": "https://alphacephei.com/vosk/models/vosk-model-small-hi-0.22.zip",
+        "dir_name": "vosk-hi",
+    },
+    "bn": {
+        "code": "bn",
+        "auto_download": False,  # Bengali is NOT auto-downloadable from Vosk
+        "model_url": "https://huggingface.co/alphacep/vosk-model-small-streaming-bn/resolve/main/vosk-model-small-streaming-bn.zip",
+        "dir_name": "vosk-bn",
+    },
+}
+
+# Fallback order when the primary language model is unavailable
+VOSK_FALLBACK_ORDER = ["hi", "en"]
+
 class STTManager:
     def __init__(self, config_manager):
         self.config_manager = config_manager
@@ -12,6 +41,9 @@ class STTManager:
         self.recognizer = None
         self.microphone = None
         self.vosk_available = False
+        
+        # Cache loaded Vosk models to avoid reloading on every call
+        self._vosk_model_cache = {}
         
         self._init_speech_recognition()
 
@@ -156,25 +188,80 @@ class STTManager:
                     print(f"[STT Error] Offline Vosk fallback failed: {ex}")
             return ""
 
+    def _load_vosk_model(self, vosk_lang_key):
+        """Loads a Vosk model by language key ('en', 'hi', 'bn') with local-path-first strategy.
+        Returns (Model, actual_lang_key) or (None, None) if not available."""
+        from vosk import Model
+        
+        # Return cached model if already loaded
+        if vosk_lang_key in self._vosk_model_cache:
+            return self._vosk_model_cache[vosk_lang_key], vosk_lang_key
+        
+        lang_info = VOSK_LANG_MAP.get(vosk_lang_key)
+        if not lang_info:
+            print(f"[STT Vosk] Unknown language key: {vosk_lang_key}")
+            return None, None
+        
+        # Strategy 1: Check for a manually-downloaded model directory
+        local_model_path = os.path.join(VOSK_MODELS_DIR, lang_info["dir_name"])
+        if os.path.isdir(local_model_path):
+            try:
+                print(f"[STT Vosk] Loading local model from: {local_model_path}")
+                model = Model(model_path=local_model_path)
+                self._vosk_model_cache[vosk_lang_key] = model
+                return model, vosk_lang_key
+            except Exception as e:
+                print(f"[STT Vosk] Failed to load local model '{local_model_path}': {e}")
+        
+        # Strategy 2: Try Vosk auto-download (only works for en, hi, etc.)
+        if lang_info["auto_download"]:
+            try:
+                print(f"[STT Vosk] Auto-downloading model for: {lang_info['code']}...")
+                model = Model(lang=lang_info["code"])
+                self._vosk_model_cache[vosk_lang_key] = model
+                return model, vosk_lang_key
+            except Exception as e:
+                print(f"[STT Vosk] Auto-download failed for '{lang_info['code']}': {e}")
+        else:
+            print(f"[STT Vosk] No auto-download available for '{vosk_lang_key}'. "
+                  f"Please download the model manually:")
+            print(f"  wget {lang_info['model_url']}")
+            print(f"  unzip -d {local_model_path} <downloaded_file>.zip")
+        
+        return None, None
+
     def _listen_and_transcribe_vosk(self, timeout, phrase_time_limit, lang):
         """Listens and transcribes synchronously using the local offline Vosk engine."""
         import pyaudio
         import numpy as np
-        from vosk import Model, KaldiRecognizer
+        from vosk import KaldiRecognizer
         
         lang_lower = lang.lower()
-        vosk_lang = "en-us"
+        vosk_lang_key = "en"
         if "bn" in lang_lower:
-            vosk_lang = "bn"
+            vosk_lang_key = "bn"
         elif "hi" in lang_lower:
-            vosk_lang = "hi"
+            vosk_lang_key = "hi"
             
-        # Initialize Vosk Model (downloads automatically from alphacephei.com to cache if missing)
-        # en-us -> small english model (~40MB)
-        # bn -> small bengali model (~30MB)
-        # hi -> small hindi model (~40MB)
-        print(f"[STT Vosk] Loading local model for: {vosk_lang}...")
-        model = Model(lang=vosk_lang)
+        # Try loading the requested model, then fall back through the chain
+        model, actual_lang = self._load_vosk_model(vosk_lang_key)
+        
+        if model is None:
+            # Try fallback languages
+            for fallback_lang in VOSK_FALLBACK_ORDER:
+                if fallback_lang == vosk_lang_key:
+                    continue
+                print(f"[STT Vosk] Trying fallback language: {fallback_lang}")
+                model, actual_lang = self._load_vosk_model(fallback_lang)
+                if model is not None:
+                    print(f"[STT Vosk] Using fallback model: {actual_lang} (requested: {vosk_lang_key})")
+                    break
+        
+        if model is None:
+            raise RuntimeError(f"No Vosk model available for '{vosk_lang_key}' or any fallback language. "
+                             f"Download models to: {VOSK_MODELS_DIR}")
+        
+        print(f"[STT Vosk] Using model: {actual_lang}")
         rec = KaldiRecognizer(model, 16000)
         
         # Audio stream parameters
