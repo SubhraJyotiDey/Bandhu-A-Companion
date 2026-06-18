@@ -89,7 +89,15 @@ class WakeWordDetector:
                     
                 try:
                     text = recognizer.recognize_google(audio, language=lang_code).lower()
-                except Exception:
+                    if text:
+                        print(f"[Wake Detector] Heard: \"{text}\"")
+                except sr.UnknownValueError:
+                    # Speech was unintelligible (too quiet, noise, or muffled)
+                    text = ""
+                except sr.RequestError as e:
+                    print(f"[Wake Detector Error] Google Speech API request failed: {e}. Check your internet connection.")
+                    text = ""
+                except Exception as e:
                     text = ""
                 
                 # Check wake word
