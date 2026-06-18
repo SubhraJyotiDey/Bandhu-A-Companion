@@ -70,6 +70,7 @@ class CompanionDaemon:
         # Control flags
         self.is_running = False
         self.voice_listening_active = False
+        self.interrupt_speech_flag = False
         
         # Initialize TP1 interrupt pin from config (defaults to GPIO 24)
         self.tp1_pin = None
@@ -150,6 +151,8 @@ class CompanionDaemon:
         
         last_tp1_state = False
         self._prev_tracking_mood = None
+        self.last_group_index = -1
+        self.last_face_count = 0
         
         while self.is_running:
             enabled = self.config_manager.config.get("face_tracking", {}).get("enabled", True)
@@ -181,6 +184,28 @@ class CompanionDaemon:
                     
                     if face:
                         self.last_face_time = time.time()
+                        
+                        # Detect if a face was just acquired (transition from 0 faces to >= 1)
+                        import random
+                        if self.last_face_count == 0:
+                            self.log(f"[Tracking] Face acquired! Count: {face['total_group']}. Welcoming...")
+                            self.servos.trigger_double_blink()
+                            self.servos.mood = "excited"
+                            # Play a quick nod to welcome the user
+                            threading.Thread(target=self.servos.play_gesture, args=("nod",), daemon=True).start()
+                            
+                        # Detect group conversation attention shifts
+                        elif face["group_index"] != self.last_group_index:
+                            self.log(f"[Tracking] Group Attention: shifting focus to person {face['group_index'] + 1} of {face['total_group']}!")
+                            self.servos.trigger_blink()
+                            self.servos.mood = "excited"
+                            # 30% chance of a friendly wink when acknowledging a group member
+                            if random.random() < 0.3:
+                                threading.Thread(target=self.servos.trigger_wink, args=(random.choice(["left", "right"]),), daemon=True).start()
+                        
+                        self.last_group_index = face["group_index"]
+                        self.last_face_count = face["total_group"]
+                        
                         if not self.servos.face_tracking_active:
                             self.servos.face_tracking_active = True
                             self.log("[Tracking] Face acquired! Centering eyes.")
@@ -227,6 +252,8 @@ class CompanionDaemon:
                         if time.time() - self.last_face_time > 2.0:
                             self.servos.face_tracking_active = False
                             self.log("[Tracking] Face lost. Reverting to auto look-around.")
+                            self.last_group_index = -1
+                            self.last_face_count = 0
                             # Restore original mood
                             if self._prev_tracking_mood:
                                 self.servos.mood = self._prev_tracking_mood
@@ -305,14 +332,62 @@ class CompanionDaemon:
     def on_wake_trigger(self):
         """Callback run by wake detector thread when trigger word is captured."""
         if self.voice_listening_active:
+            if self.tts.is_speaking:
+                self.log("[Voice] Interruption detected! Silencing speech.")
+                self.tts.stop()
+                self.interrupt_speech_flag = True
             return # Avoid nested listens
             
         threading.Thread(target=self._voice_interaction_flow, daemon=True).start()
 
+    def _wait_for_tts_interrupt(self):
+        """Blocks while TTS is speaking, returning True if interrupted, False otherwise."""
+        self.interrupt_speech_flag = False
+        time.sleep(0.05) # Give the TTS thread a brief moment to transition self.tts.is_speaking
+        while self.tts.is_speaking:
+            if getattr(self, "interrupt_speech_flag", False):
+                self.log("[Voice] Interrupt flag detected. Silencing speech.")
+                self.tts.stop()
+                self.interrupt_speech_flag = False
+                return True
+            time.sleep(0.05)
+        return False
+
+    def _apply_agent_response_effects(self, agent_reply):
+        """Helper to parse mood, expressions, and tools from the agent's reply."""
+        import re
+        mood_tag = "neutral"
+        
+        # Parse eye expressions/moods
+        expr_match = re.search(r'\[expression:\s*(\w+)\]', agent_reply)
+        if expr_match:
+            mood_tag = expr_match.group(1).lower()
+            
+        # Parse GPIO tools calls
+        tool_matches = re.findall(r'\[tool:\s*toggle_gpio:\s*(\d+):\s*(\w+)\]', agent_reply)
+        for match in tool_matches:
+            pin = int(match[0])
+            state = match[1].lower() == "on"
+            self.gpio.set_pin_state(pin, state)
+            self.servos.play_gesture("nod") # nod to confirm GPIO action
+            self.log(f"[Voice] Agent triggered tool: GPIO Pin {pin} set to {state}")
+            
+        # Apply mood expression / gesture changes
+        if mood_tag == "wink":
+            self.servos.trigger_wink()
+        elif mood_tag == "blink":
+            self.servos.trigger_blink()
+        elif mood_tag in ["nod", "shake", "think", "shock", "scanning"]:
+            self.servos.play_gesture(mood_tag)
+            self.log(f"[Voice] Triggered gesture: {mood_tag}")
+        elif mood_tag in ["happy", "sad", "angry", "surprised", "bored", "excited", "neutral"]:
+            self.servos.mood = mood_tag
+            self.log(f"[Voice] Eye expression set to: {mood_tag}")
+
     def _voice_interaction_flow(self):
-        """Orchestrates Wakeup -> Visual Alert -> Speech Capture -> AI Query -> Actions -> TTS reply."""
+        """Orchestrates continuous conversation session (Gemini Live style)."""
         self.voice_listening_active = True
-        self.log("[Voice] Wake word detected! Starting interaction...")
+        self.log("[Voice] Conversation session started.")
         
         # 1. Wake alert visual response (Eyelids center, rapid double-blink)
         self.servos.set_target("yaw", 90)
@@ -322,18 +397,50 @@ class CompanionDaemon:
         # Wait for blink to finish and establish "attentive" pose
         time.sleep(0.4)
         
-        # Speak a short welcoming chime or hello
         lang = self.config_manager.config.get("voice", {}).get("language", "en-US")
         greeting = "Yes, friend?" if "en" in lang else "জি বন্ধু?" if "bn" in lang else "हाँ दोस्त?"
         self.tts.speak(greeting, lang)
         
-        # Give TTS time to finish speaking greeting
-        time.sleep(1.2)
+        # Wait for greeting to finish, but allow interrupt!
+        interrupted = self._wait_for_tts_interrupt()
         
-        # 2. Listen to user response
-        user_speech = self.stt.listen_and_transcribe(timeout=6, phrase_time_limit=10, lang=lang)
+        silence_count = 0
         
-        if user_speech:
+        while self.is_running and self.voice_listening_active:
+            if interrupted:
+                self.log("[Voice] Interrupted! Resuming listening immediately.")
+                interrupted = False
+                
+            # 2. Listen to user response
+            self.log("[Voice] Listening to user...")
+            
+            # Temporarily pause wake-word detector to prevent mic conflicts on Raspberry Pi
+            self.wake_detector.pause()
+            try:
+                user_speech = self.stt.listen_and_transcribe(timeout=6, phrase_time_limit=10, lang=lang)
+            finally:
+                self.wake_detector.resume()
+                
+            if not user_speech:
+                silence_count += 1
+                if silence_count >= 1: # End session after 1 consecutive silence timeout
+                    self.log("[Voice] No speech detected. Ending conversation session.")
+                    break
+                continue
+                
+            # Reset silence count on active speech
+            silence_count = 0
+            
+            # Clean and check for exit commands
+            cleanup_speech = user_speech.lower().strip()
+            exit_phrases = ["goodbye", "exit", "stop conversation", "bye bye", "bye", "বিদায়", "अलविदा", "खत्म करो"]
+            if any(p in cleanup_speech for p in exit_phrases):
+                parting = "Goodbye!" if "en" in lang else "আবার দেখা হবে!" if "bn" in lang else "फिर मिलेंगे!"
+                self.tts.speak(parting, lang)
+                self._wait_for_tts_interrupt()
+                self.log("[Voice] User requested exit. Ending session.")
+                break
+                
             self.log(f"[Voice] User spoke: \"{user_speech}\"")
             self.servos.mood = "excited"
             
@@ -342,55 +449,21 @@ class CompanionDaemon:
             agent_reply = self.brain.send_message(user_speech)
             self.log(f"[Voice] Agent reply: \"{agent_reply}\"")
             
-            # 3. Parse tags from agent reply
-            # Examples: [expression: happy], [tool: toggle_gpio:17:on]
-            mood_tag = "neutral"
+            if not agent_reply:
+                agent_reply = "I'm sorry, I couldn't reach my brain." if "en" in lang else "দুঃখিত, আমি বুঝতে পারিনি।" if "bn" in lang else "माफ़ कीजिये, আমি समझ नहीं पाया।"
+                
+            # Parse and apply tags from agent reply
+            self._apply_agent_response_effects(agent_reply)
             
-            import re
-            
-            # Parse eye expressions/moods
-            expr_match = re.search(r'\[expression:\s*(\w+)\]', agent_reply)
-            if expr_match:
-                mood_tag = expr_match.group(1).lower()
-                
-            # Parse GPIO tools calls
-            tool_matches = re.findall(r'\[tool:\s*toggle_gpio:\s*(\d+):\s*(\w+)\]', agent_reply)
-            for match in tool_matches:
-                pin = int(match[0])
-                state = match[1].lower() == "on"
-                self.gpio.set_pin_state(pin, state)
-                self.servos.play_gesture("nod") # nod to confirm GPIO action
-                self.log(f"[Voice] Agent triggered tool: GPIO Pin {pin} set to {state}")
-                
-            # Apply mood expression / gesture changes
-            if mood_tag == "wink":
-                self.servos.trigger_wink()
-            elif mood_tag == "blink":
-                self.servos.trigger_blink()
-            elif mood_tag in ["nod", "shake", "think", "shock", "scanning"]:
-                self.servos.play_gesture(mood_tag)
-                self.log(f"[Voice] Triggered gesture: {mood_tag}")
-            elif mood_tag in ["happy", "sad", "angry", "surprised", "bored", "excited", "neutral"]:
-                self.servos.mood = mood_tag
-                self.log(f"[Voice] Eye expression set to: {mood_tag}")
-                
             # 4. Speak reply back to user
-            # TTS speak will run in its own thread, but we track time to return to neutral afterward
             self.tts.speak(agent_reply, lang)
             
-            # Estimate reading duration (approx 150 words per minute)
-            word_count = len(agent_reply.split())
-            read_duration = max(3.0, (word_count / 150.0) * 60.0)
+            # Wait for speaking to finish, allowing interrupt
+            interrupted = self._wait_for_tts_interrupt()
             
-            # Wait during speaking, then transition eye mood back to neutral/auto look around
-            time.sleep(read_duration)
-            self.servos.mood = "neutral"
-            
-        else:
-            self.log("[Voice] No speech detected or not understood.")
-            self.servos.mood = "neutral"
-            
+        self.servos.mood = "neutral"
         self.voice_listening_active = False
+        self.log("[Voice] Conversation session ended. Reverting to wake word detection.")
 
     def trigger_audio_reactive_snap(self, volume=None):
         """Snaps gaze to a random direction and flutters eyelids on loud noise."""

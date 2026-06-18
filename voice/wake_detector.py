@@ -11,6 +11,7 @@ class WakeWordDetector:
         self.noise_callback = noise_callback
         
         self.is_listening = False
+        self.paused = False
         self.thread = None
         self.mic_available = (self.stt_manager.recognizer is not None or self.config_manager.config.get("voice", {}).get("wake_word_engine", "google").lower() == "openwakeword")
 
@@ -71,6 +72,16 @@ class WakeWordDetector:
             self.thread.join(timeout=1.0)
         print("[Wake Detector] Background wake word detector stopped.")
 
+    def pause(self):
+        """Temporarily pauses wake word detection (releases mic/stream)."""
+        self.paused = True
+        print("[Wake Detector] Suspended wake word detection.")
+
+    def resume(self):
+        """Resumes wake word detection."""
+        self.paused = False
+        print("[Wake Detector] Resumed wake word detection.")
+
     def _listener_loop(self):
         """Dispatches to the selected wake word detection engine."""
         if self.engine == "openwakeword" and self.oww_model is not None:
@@ -92,26 +103,38 @@ class WakeWordDetector:
         stream = None
         
         try:
-            stream = p.open(
-                format=FORMAT,
-                channels=CHANNELS,
-                rate=RATE,
-                input=True,
-                frames_per_buffer=CHUNK
-            )
-            print("[Wake Detector] openWakeWord listener active. Monitoring audio...")
-        except Exception as e:
-            print(f"[Wake Detector Error] Failed to open PyAudio input stream for openWakeWord: {e}")
-            self.is_listening = False
-            p.terminate()
-            return
-            
-        try:
             # oww_model.prediction_accumulators keys are the names of the loaded models (filenames or built-ins)
             model_keys = list(self.oww_model.prediction_accumulators.keys())
             print(f"[Wake Detector] Monitoring for custom wake words: {model_keys}")
             
             while self.is_listening:
+                if self.paused:
+                    if stream:
+                        try:
+                            stream.stop_stream()
+                            stream.close()
+                        except Exception:
+                            pass
+                        stream = None
+                        print("[Wake Detector] Closed PyAudio input stream due to pause.")
+                    time.sleep(0.1)
+                    continue
+                
+                if not stream:
+                    try:
+                        stream = p.open(
+                            format=FORMAT,
+                            channels=CHANNELS,
+                            rate=RATE,
+                            input=True,
+                            frames_per_buffer=CHUNK
+                        )
+                        print("[Wake Detector] Opened PyAudio input stream after pause.")
+                    except Exception as e:
+                        print(f"[Wake Detector Error] Failed to open PyAudio stream: {e}")
+                        time.sleep(1.0)
+                        continue
+                
                 try:
                     data = stream.read(CHUNK, exception_on_overflow=False)
                     if not data:
@@ -169,6 +192,9 @@ class WakeWordDetector:
         print(f"[Wake Detector] Monitoring audio... Trigger energy: {int(energy_trigger)}")
         
         while self.is_listening:
+            if self.paused:
+                time.sleep(0.1)
+                continue
             cfg_wake_word = self.config_manager.config.get("voice", {}).get("wake_word", "jarvis").lower()
             lang = self.config_manager.config.get("voice", {}).get("language", "en-US")
             lang_lower = lang.lower()

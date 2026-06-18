@@ -22,6 +22,9 @@ class TTSManager:
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
             "temp_speech"
         )
+        
+        # Track current playback process to support sudden interruptions
+        self.current_process = None
 
     def _get_voice_for_lang(self, lang):
         """Maps standard locale string to Edge-TTS voice names."""
@@ -48,11 +51,10 @@ class TTSManager:
         return "en"
 
     def play_audio(self, filepath):
-        """Plays an audio file on Windows or Linux/Pi in a lightweight, non-blocking way."""
+        """Plays an audio file in a way that allows interruption."""
         if sys.platform.startswith("win"):
             # Windows audio playback via PowerShell (avoiding external libraries)
             try:
-                # Use Windows Media Player COM object inside PowerShell to play MP3
                 ps_cmd = (
                     f"Add-Type -AssemblyName PresentationCore; "
                     f"$player = New-Object System.Windows.Media.MediaPlayer; "
@@ -61,26 +63,46 @@ class TTSManager:
                     f"while ($player.NaturalDuration.HasTimeSpan -eq $false) {{ Start-Sleep -Milliseconds 50 }}; "
                     f"Start-Sleep -Seconds ($player.NaturalDuration.TimeSpan.TotalSeconds + 0.5)"
                 )
-                subprocess.run(["powershell", "-Command", ps_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self.current_process = subprocess.Popen(["powershell", "-Command", ps_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self.current_process.wait()
             except Exception as e:
                 print(f"[TTS Play Error] Windows playback failed: {e}")
+            finally:
+                self.current_process = None
         else:
             # Linux / Raspberry Pi audio playback
-            # Check if mpg123 is installed (which we recommend for MP3)
             try:
                 if filepath.endswith(".mp3"):
-                    subprocess.run(["mpg123", "-q", filepath], check=True)
+                    self.current_process = subprocess.Popen(["mpg123", "-q", filepath], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 else:
-                    subprocess.run(["aplay", "-q", filepath], check=True)
-            except (subprocess.CalledProcessError, FileNotFoundError):
+                    self.current_process = subprocess.Popen(["aplay", "-q", filepath], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self.current_process.wait()
+            except (subprocess.SubprocessError, FileNotFoundError):
                 # Try fallback general command line audio players
                 try:
-                    subprocess.run(["play", "-q", filepath], check=True) # SoX
+                    self.current_process = subprocess.Popen(["play", "-q", filepath], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) # SoX
+                    self.current_process.wait()
                 except Exception:
                     try:
-                        subprocess.run(["omxplayer", filepath], check=True)
+                        self.current_process = subprocess.Popen(["omxplayer", filepath], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        self.current_process.wait()
                     except Exception:
                         print(f"[TTS Play Error] No command line audio player (mpg123, aplay, play) succeeded on Pi.")
+            finally:
+                self.current_process = None
+
+    def stop(self):
+        """Immediately interrupts and terminates any currently playing speech."""
+        self.is_speaking = False
+        if self.current_process:
+            try:
+                self.current_process.terminate()
+                self.current_process.kill()
+                print("[TTS] Speech playback interrupted and stopped.")
+            except Exception as e:
+                print(f"[TTS Error] Failed to interrupt speech process: {e}")
+            finally:
+                self.current_process = None
 
     def speak(self, text, lang=None):
         """Synthesizes text to speech and plays it. Respects locks to avoid overlap."""
@@ -92,6 +114,9 @@ class TTSManager:
             lang = self.config_manager.config.get("voice", {}).get("language", "en-US")
             
         provider = self.config_manager.config.get("voice", {}).get("tts_provider", "edge-tts")
+        
+        # Set speaking status immediately to prevent checking race condition before thread starts
+        self.is_speaking = True
         
         # Start speech thread
         threading.Thread(target=self._speak_thread, args=(text, lang, provider), daemon=True).start()

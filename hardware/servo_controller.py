@@ -389,7 +389,11 @@ class ServoController:
         if self.gesture_active:
             return False
         name = name.lower()
-        if name in ["startup", "nod", "shake", "think", "shock", "scanning"]:
+        if name in [
+            "startup", "nod", "shake", "think", "shock", "scanning",
+            "idle_roll_eyes", "idle_giggle", "idle_yawn", "idle_daydream",
+            "idle_insect_chase", "idle_shy_look", "idle_curious_scan"
+        ]:
             threading.Thread(target=self._gesture_thread, args=(name,), daemon=True).start()
             return True
         return False
@@ -601,6 +605,239 @@ class ServoController:
                 self.target_pos["left_lower_eyelid"] = 120.0
                 self.target_pos["right_lower_eyelid"] = 120.0
                 time.sleep(0.3)
+
+            elif name == "idle_roll_eyes":
+                # Roll eyes in a smooth circle
+                steps = 45
+                r_yaw = 22.0
+                r_pitch = 14.0
+                for i in range(steps):
+                    theta = (i / float(steps)) * 2.0 * math.pi
+                    self.target_pos["yaw"] = 90.0 + r_yaw * math.sin(theta)
+                    self.target_pos["pitch"] = 90.0 + r_pitch * math.cos(theta)
+                    time.sleep(0.04)
+                
+                # Perform a sigh look at the end
+                self.target_pos["yaw"] = 90.0
+                self.target_pos["pitch"] = 112.0
+                self.target_pos["left_upper_eyelid"] = 95.0
+                self.target_pos["right_upper_eyelid"] = 95.0
+                self.target_pos["left_lower_eyelid"] = 105.0
+                self.target_pos["right_lower_eyelid"] = 105.0
+                time.sleep(0.9)
+                
+                # Settle
+                self.target_pos["pitch"] = 90.0
+                self.target_pos["left_upper_eyelid"] = 60.0
+                self.target_pos["right_upper_eyelid"] = 60.0
+                self.target_pos["left_lower_eyelid"] = 120.0
+                self.target_pos["right_lower_eyelid"] = 120.0
+                time.sleep(0.3)
+
+            elif name == "idle_giggle":
+                # Happy squinty eyes
+                self.target_pos["left_upper_eyelid"] = 80.0
+                self.target_pos["right_upper_eyelid"] = 80.0
+                self.target_pos["left_lower_eyelid"] = 100.0
+                self.target_pos["right_lower_eyelid"] = 100.0
+                
+                # Eyeball rapid vibration (jitter)
+                for _ in range(8):
+                    self.target_pos["yaw"] = 90.0 + random.uniform(-4.0, 4.0)
+                    self.target_pos["pitch"] = 90.0 + random.uniform(-2.5, 2.5)
+                    time.sleep(0.08)
+                    
+                # Center eyeballs
+                self.target_pos["yaw"] = 90.0
+                self.target_pos["pitch"] = 90.0
+                time.sleep(0.1)
+                
+                # Playful wink
+                self.target_pos["left_upper_eyelid"] = 125.0
+                self.target_pos["left_lower_eyelid"] = 80.0
+                time.sleep(0.18)
+                
+                # Restore
+                self.target_pos["left_upper_eyelid"] = 60.0
+                self.target_pos["left_lower_eyelid"] = 120.0
+                self.target_pos["right_upper_eyelid"] = 60.0
+                self.target_pos["right_lower_eyelid"] = 120.0
+                time.sleep(0.3)
+
+            elif name == "idle_yawn":
+                # Drift up-center
+                self.target_pos["yaw"] = 90.0
+                self.target_pos["pitch"] = 80.0
+                
+                # Droop lids slowly (yawning starts)
+                self.target_pos["left_upper_eyelid"] = 110.0
+                self.target_pos["right_upper_eyelid"] = 110.0
+                self.target_pos["left_lower_eyelid"] = 90.0
+                self.target_pos["right_lower_eyelid"] = 90.0
+                time.sleep(1.3)
+                
+                # Wide open eyes (mouth open equivalent)
+                self.target_pos["left_upper_eyelid"] = 40.0
+                self.target_pos["right_upper_eyelid"] = 40.0
+                self.target_pos["left_lower_eyelid"] = 140.0
+                self.target_pos["right_lower_eyelid"] = 140.0
+                time.sleep(1.0)
+                
+                # Slow blink/shut down
+                self.target_pos["left_upper_eyelid"] = 125.0
+                self.target_pos["right_upper_eyelid"] = 125.0
+                self.target_pos["left_lower_eyelid"] = 80.0
+                self.target_pos["right_lower_eyelid"] = 80.0
+                time.sleep(0.4)
+                
+                # Restore
+                self.target_pos["left_upper_eyelid"] = 60.0
+                self.target_pos["right_upper_eyelid"] = 60.0
+                self.target_pos["left_lower_eyelid"] = 120.0
+                self.target_pos["right_lower_eyelid"] = 120.0
+                self.target_pos["pitch"] = 90.0
+                time.sleep(0.3)
+
+            elif name == "idle_daydream":
+                # Gaze down-left, sleepy lids
+                self.target_pos["yaw"] = 72.0
+                self.target_pos["pitch"] = 108.0
+                self.target_pos["left_upper_eyelid"] = 98.0
+                self.target_pos["right_upper_eyelid"] = 98.0
+                self.target_pos["left_lower_eyelid"] = 102.0
+                self.target_pos["right_lower_eyelid"] = 102.0
+                time.sleep(3.2) # daydream hold
+                
+                # Sudden startle (shake awake)
+                self.target_pos["yaw"] = 90.0
+                self.target_pos["pitch"] = 85.0
+                self.target_pos["left_upper_eyelid"] = 45.0
+                self.target_pos["right_upper_eyelid"] = 45.0
+                self.target_pos["left_lower_eyelid"] = 135.0
+                self.target_pos["right_lower_eyelid"] = 135.0
+                time.sleep(0.2)
+                
+                # Rapid double-blink
+                self.target_pos["left_upper_eyelid"] = 125.0
+                self.target_pos["right_upper_eyelid"] = 125.0
+                self.target_pos["left_lower_eyelid"] = 80.0
+                self.target_pos["right_lower_eyelid"] = 80.0
+                time.sleep(0.08)
+                self.target_pos["left_upper_eyelid"] = 60.0
+                self.target_pos["right_upper_eyelid"] = 60.0
+                self.target_pos["left_lower_eyelid"] = 120.0
+                self.target_pos["right_lower_eyelid"] = 120.0
+                time.sleep(0.12)
+                self.target_pos["left_upper_eyelid"] = 125.0
+                self.target_pos["right_upper_eyelid"] = 125.0
+                self.target_pos["left_lower_eyelid"] = 80.0
+                self.target_pos["right_lower_eyelid"] = 80.0
+                time.sleep(0.08)
+                
+                # Settle
+                self.target_pos["left_upper_eyelid"] = 60.0
+                self.target_pos["right_upper_eyelid"] = 60.0
+                self.target_pos["left_lower_eyelid"] = 120.0
+                self.target_pos["right_lower_eyelid"] = 120.0
+                self.target_pos["pitch"] = 90.0
+                time.sleep(0.3)
+
+            elif name == "idle_insect_chase":
+                # Look Point A
+                self.target_pos["yaw"] = 62.0
+                self.target_pos["pitch"] = 82.0
+                time.sleep(0.5)
+                # Look Point B
+                self.target_pos["yaw"] = 118.0
+                self.target_pos["pitch"] = 98.0
+                time.sleep(0.45)
+                # Quick double blink
+                self.target_pos["left_upper_eyelid"] = 125.0
+                self.target_pos["right_upper_eyelid"] = 125.0
+                self.target_pos["left_lower_eyelid"] = 80.0
+                self.target_pos["right_lower_eyelid"] = 80.0
+                time.sleep(0.1)
+                self.target_pos["left_upper_eyelid"] = 60.0
+                self.target_pos["right_upper_eyelid"] = 60.0
+                self.target_pos["left_lower_eyelid"] = 120.0
+                self.target_pos["right_lower_eyelid"] = 120.0
+                time.sleep(0.1)
+                # Trace Point C
+                self.target_pos["yaw"] = 78.0
+                self.target_pos["pitch"] = 112.0
+                time.sleep(0.65)
+                # Settle
+                self.target_pos["yaw"] = 90.0
+                self.target_pos["pitch"] = 90.0
+                time.sleep(0.3)
+
+            elif name == "idle_shy_look":
+                # Look down and away
+                self.target_pos["yaw"] = 118.0
+                self.target_pos["pitch"] = 114.0
+                self.target_pos["left_upper_eyelid"] = 85.0
+                self.target_pos["right_upper_eyelid"] = 85.0
+                self.target_pos["left_lower_eyelid"] = 105.0
+                self.target_pos["right_lower_eyelid"] = 105.0
+                time.sleep(1.6)
+                
+                # Look back shyly
+                self.target_pos["yaw"] = 90.0
+                self.target_pos["pitch"] = 95.0
+                time.sleep(0.65)
+                
+                # Playful wink
+                self.target_pos["left_upper_eyelid"] = 125.0
+                self.target_pos["left_lower_eyelid"] = 80.0
+                time.sleep(0.18)
+                
+                # Restore
+                self.target_pos["left_upper_eyelid"] = 60.0
+                self.target_pos["right_upper_eyelid"] = 60.0
+                self.target_pos["left_lower_eyelid"] = 120.0
+                self.target_pos["right_lower_eyelid"] = 120.0
+                time.sleep(0.3)
+
+            elif name == "idle_curious_scan":
+                # Look far left with alert eyes
+                self.target_pos["yaw"] = 55.0
+                self.target_pos["pitch"] = 80.0
+                self.target_pos["left_upper_eyelid"] = 48.0
+                self.target_pos["right_upper_eyelid"] = 48.0
+                self.target_pos["left_lower_eyelid"] = 132.0
+                self.target_pos["right_lower_eyelid"] = 132.0
+                time.sleep(0.6)
+                
+                # Scan to far right, looking up
+                self.target_pos["yaw"] = 125.0
+                self.target_pos["pitch"] = 70.0
+                time.sleep(0.8)
+                
+                # Blink
+                self.target_pos["left_upper_eyelid"] = 125.0
+                self.target_pos["right_upper_eyelid"] = 125.0
+                self.target_pos["left_lower_eyelid"] = 80.0
+                self.target_pos["right_lower_eyelid"] = 80.0
+                time.sleep(0.12)
+                
+                self.target_pos["left_upper_eyelid"] = 48.0
+                self.target_pos["right_upper_eyelid"] = 48.0
+                self.target_pos["left_lower_eyelid"] = 132.0
+                self.target_pos["right_lower_eyelid"] = 132.0
+                
+                # Scan back to center-down
+                self.target_pos["yaw"] = 90.0
+                self.target_pos["pitch"] = 100.0
+                time.sleep(0.6)
+                
+                # Settle
+                self.target_pos["yaw"] = 90.0
+                self.target_pos["pitch"] = 90.0
+                self.target_pos["left_upper_eyelid"] = 60.0
+                self.target_pos["right_upper_eyelid"] = 60.0
+                self.target_pos["left_lower_eyelid"] = 120.0
+                self.target_pos["right_lower_eyelid"] = 120.0
+                time.sleep(0.3)
         finally:
             self.gesture_active = False
 
@@ -804,6 +1041,9 @@ class ServoController:
         # Curiosity perk-up timer (fires when no face is present for a while)
         next_curiosity_time = time.time() + random.uniform(15.0, 30.0)
         
+        # Autonomous idle gestures timer
+        next_idle_gesture_time = time.time() + random.uniform(10.0, 20.0)
+        
         while self.is_running:
             now = time.time()
             dt = now - last_time
@@ -847,6 +1087,16 @@ class ServoController:
                     self._curiosity_target_pitch = 90.0 + random.uniform(-8.0, 5.0)
                     next_curiosity_time = now + random.uniform(18.0, 40.0)
                 
+                # --- Periodic autonomous idle gestures / self-play ---
+                if now > next_idle_gesture_time and not self.gesture_active and not self._curiosity_active:
+                    idle_g = random.choice([
+                        "idle_roll_eyes", "idle_giggle", "idle_yawn", 
+                        "idle_daydream", "idle_insect_chase", "idle_shy_look", 
+                        "idle_curious_scan"
+                    ])
+                    self.play_gesture(idle_g)
+                    next_idle_gesture_time = now + random.uniform(12.0, 24.0)
+                
                 if self._curiosity_active:
                     elapsed_c = now - self._curiosity_timer
                     if self._curiosity_phase == 0:
@@ -888,23 +1138,82 @@ class ServoController:
                     drift_start_pitch = self.target_pos["pitch"]
                     
                     roll = random.random()
-                    if roll < 0.60:
-                        # 60% — Micro-glance: small adjustment near current position
+                    
+                    if roll < 0.08:
+                        # 8% — Extreme Curiosity Look (Dart eyes to extreme corners to "explore")
+                        drift_type = "extreme_curiosity"
+                        yaw_cfg = self.servo_cfgs.get("yaw", {})
+                        pitch_cfg = self.servo_cfgs.get("pitch", {})
+                        
+                        corner = random.choice(["left_up", "left_down", "right_up", "right_down", "far_left", "far_right", "far_up", "far_down"])
+                        
+                        if corner == "left_up":
+                            drift_yaw = yaw_cfg.get("min_angle", 50.0) + random.uniform(0.0, 5.0)
+                            drift_pitch = pitch_cfg.get("min_angle", 60.0) + random.uniform(0.0, 4.0)
+                        elif corner == "left_down":
+                            drift_yaw = yaw_cfg.get("min_angle", 50.0) + random.uniform(0.0, 5.0)
+                            drift_pitch = pitch_cfg.get("max_angle", 120.0) - random.uniform(0.0, 4.0)
+                        elif corner == "right_up":
+                            drift_yaw = yaw_cfg.get("max_angle", 130.0) - random.uniform(0.0, 5.0)
+                            drift_pitch = pitch_cfg.get("min_angle", 60.0) + random.uniform(0.0, 4.0)
+                        elif corner == "right_down":
+                            drift_yaw = yaw_cfg.get("max_angle", 130.0) - random.uniform(0.0, 5.0)
+                            drift_pitch = pitch_cfg.get("max_angle", 120.0) - random.uniform(0.0, 4.0)
+                        elif corner == "far_left":
+                            drift_yaw = yaw_cfg.get("min_angle", 50.0)
+                            drift_pitch = 90.0
+                        elif corner == "far_right":
+                            drift_yaw = yaw_cfg.get("max_angle", 130.0)
+                            drift_pitch = 90.0
+                        elif corner == "far_up":
+                            drift_yaw = 90.0
+                            drift_pitch = pitch_cfg.get("min_angle", 60.0)
+                        else:  # far_down
+                            drift_yaw = 90.0
+                            drift_pitch = pitch_cfg.get("max_angle", 120.0)
+                            
+                        # Widen eyes in curiosity (excited mood baselines)
+                        self.mood = "excited"
+                        
+                        # Sometimes play a quick wink or double blink in self-play
+                        action_roll = random.random()
+                        if action_roll < 0.25:
+                            threading.Thread(target=self.trigger_wink, args=(random.choice(["left", "right"]),), daemon=True).start()
+                        elif action_roll < 0.50:
+                            threading.Thread(target=self.trigger_double_blink, daemon=True).start()
+                            
+                    elif roll < 0.15:
+                        # 7% — Suspicious / Narrows eyes to "inspect" something quietly
+                        drift_type = "suspicious_think"
+                        drift_yaw = 90.0 + random.uniform(-16.0, 16.0)
+                        drift_pitch = 90.0 + random.uniform(-4.0, 2.0)
+                        self.mood = "angry" # Narrows eyelids (angry mood baselines)
+                        
+                        if random.random() < 0.40:
+                            threading.Thread(target=self.play_gesture, args=("think",), daemon=True).start()
+                            
+                    elif roll < 0.65:
+                        # 50% — Micro-glance: subtle look shifts nearby
                         drift_type = "small"
                         drift_yaw = drift_start_yaw + random.uniform(-4.0, 4.0)
                         drift_pitch = drift_start_pitch + random.uniform(-2.5, 2.5)
+                        self.mood = "neutral"
+                        
                     elif roll < 0.85:
-                        # 25% — Medium shift: purposeful look
+                        # 20% — Medium shift: purposeful looking around
                         drift_type = "medium"
                         gaze_range = 10.0 * self.extroversion
                         drift_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
                         drift_pitch = 90.0 + random.uniform(-gaze_range / 2.5, gaze_range / 3.5)
+                        self.mood = "neutral"
+                        
                     else:
-                        # 15% — Large attention shift
+                        # 10% — Large attention shift
                         drift_type = "large"
                         gaze_range = 18.0 * self.extroversion
                         drift_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
                         drift_pitch = 90.0 + random.uniform(-6.0, 4.0)
+                        self.mood = "neutral"
                     
                     # Clamp drift targets to safe ranges
                     yaw_cfg = self.servo_cfgs.get("yaw", {})
@@ -916,7 +1225,7 @@ class ServoController:
                     if self.mood == "sad":
                         drift_pitch = min(drift_pitch + 8.0, pitch_cfg.get("max_angle", 120))  # Look down
                     elif self.mood == "bored":
-                        drift_pitch = min(drift_pitch + 5.0, pitch_cfg.get("max_angle", 120))  # Slight droop
+                        drift_pitch = min(drift_pitch + 5.0, pitch_cfg.get("max_angle", 120))  # Droop
                     
                     # Snap target instantly
                     self.target_pos["yaw"] = drift_yaw
@@ -926,14 +1235,12 @@ class ServoController:
                     hold_multiplier = 1.0 / max(0.2, self.extroversion)
                     
                     # Set next drift timer based on shift type and personality
-                    if drift_type == "large":
+                    if drift_type in ["large", "extreme_curiosity"]:
                         drift_interval = random.uniform(1.2, 2.5) * hold_multiplier
-                        # 40% chance of saccadic blink
-                        if random.random() < 0.40:
+                        if drift_type == "large" and random.random() < 0.40:
                             self.trigger_blink()
-                    elif drift_type == "medium":
+                    elif drift_type in ["medium", "suspicious_think"]:
                         drift_interval = random.uniform(0.7, 1.5) * hold_multiplier
-                        # 20% chance of saccadic blink
                         if random.random() < 0.20:
                             self.trigger_blink()
                     else:

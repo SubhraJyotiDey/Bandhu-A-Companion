@@ -3,6 +3,7 @@ import struct
 import sys
 import time
 import threading
+import random
 
 # Try loading fcntl only on Linux/macOS
 try:
@@ -174,12 +175,41 @@ class PersonSensor:
             time.sleep(0.1) # 10Hz read frequency
 
     def get_primary_face(self):
-        """Returns the largest or first face detected, along with its center coordinates (0-255)."""
+        """Returns the active tracked face, alternating attention if multiple are present."""
         if not self.face_detected or not self.faces:
             return None
             
-        # Get the first face
-        face = self.faces[0]
+        # Sort faces by bounding box area (largest/closest first)
+        def get_area(f):
+            return (f["box_right"] - f["box_left"]) * (f["box_bottom"] - f["box_top"])
+            
+        sorted_faces = sorted(self.faces, key=get_area, reverse=True)
+        
+        # Track switching state
+        if not hasattr(self, "_last_switch_time"):
+            self._last_switch_time = 0.0
+            self._current_face_idx = 0
+            
+        now = time.time()
+        num_faces = len(sorted_faces)
+        
+        if num_faces > 1:
+            # Shift attention every 4-6 seconds
+            if now - self._last_switch_time > random.uniform(4.0, 6.0):
+                # Move to next face, with a bias towards looking at the closest (index 0)
+                if random.random() < 0.65:
+                    self._current_face_idx = 0 # Look at primary person
+                else:
+                    self._current_face_idx = random.randint(1, num_faces - 1)
+                self._last_switch_time = now
+                print(f"[Sensor] Gaze shifted to person index {self._current_face_idx} in a group of {num_faces}")
+        else:
+            self._current_face_idx = 0
+            
+        if self._current_face_idx >= num_faces:
+            self._current_face_idx = 0
+            
+        face = sorted_faces[self._current_face_idx]
         
         # Calculate center
         x = (face["box_left"] + face["box_right"]) / 2.0
@@ -192,5 +222,7 @@ class PersonSensor:
             "height": face["box_bottom"] - face["box_top"],
             "confidence": face["box_confidence"],
             "id": face["id"],
-            "is_facing": face["is_facing"]
+            "is_facing": face["is_facing"],
+            "group_index": self._current_face_idx,
+            "total_group": num_faces
         }
