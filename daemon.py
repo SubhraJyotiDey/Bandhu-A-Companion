@@ -736,6 +736,9 @@ class CompanionDaemon:
         silence_count = 0
         
         while self.is_running and self.voice_listening_active:
+            # Reload language dynamically to handle auto-language detection changes
+            lang = self.config_manager.config.get("voice", {}).get("language", "en-US")
+            
             if interrupted:
                 self.log("[Voice] Interrupted! Resuming listening immediately.")
                 interrupted = False
@@ -773,6 +776,10 @@ class CompanionDaemon:
                 
             self.log(f"[Voice] User spoke: \"{user_speech}\"")
             self.servos.mood = "excited"
+            
+            # Start pre-emptive voice filler and gesture to mask LLM/TTS generation latency
+            self.tts.play_filler(lang)
+            self.servos.play_gesture("think")
             
             # Send message to ZeroClaw brain
             self.log("[Voice] Querying ZeroClaw agent...")

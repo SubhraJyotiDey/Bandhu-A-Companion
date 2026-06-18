@@ -6,3 +6,6 @@ venv/
 .idea/
 .vscode/
 config.json.local
+voice/fillers/
+voice/system_cache/
+temp_speech*

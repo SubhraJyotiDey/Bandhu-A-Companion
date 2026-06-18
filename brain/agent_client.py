@@ -38,38 +38,74 @@ class ZeroClawClient:
 
     def _generate_mock_response(self, text):
         """Rule-based friendly chatbot fallback when ZeroClaw is offline."""
-        text = text.lower()
+        text = text.lower().strip()
         
-        # Bangla keyword checks
-        if any(w in text for w in ["কেমন আছ", "কেমন আছো", "কেমন আছেন"]):
-            return "আমি ভালো আছি বন্ধু! আশা করি তুমিও ভালো আছো। [expression: happy]"
-        if any(w in text for w in ["নাম কি", "নাম কী"]):
-            return "আমার কোনো নাম নেই, তবে তুমি আমাকে তোমার রোবট বন্ধু বলতে পারো! [expression: excited]"
-        if any(w in text for w in ["আলো", "লাইট", "জ্বালাও"]):
-            return "নিশ্চয়ই, আমি আলোটি জ্বালিয়ে দিচ্ছি! [expression: surprised] [tool: toggle_gpio:17:on]"
-        if any(w in text for w in ["বন্ধু", "ভালোবাসি"]):
-            return "আমিও তোমাকে খুব পছন্দ করি! তুমি আমার সেরা বন্ধু। [expression: happy]"
+        # 1. Bangla triggers & responses (Friend-like, supportive, interactive)
+        if any(w in text for w in ["কেমন আছ", "কেমন আছো", "কেমন আছেন", "কেমন চলছ", "কেমন চলছে"]):
+            return random.choice([
+                "আমি খুব ভালো আছি, বন্ধু! তোমার দিনটা কেমন কাটছে বলো? [expression: happy]",
+                "তোমার সাথে কথা বলতে পেরে আমি দারুণ অনুভব করছি! তুমি কেমন আছো? [expression: excited]"
+            ])
+        if any(w in text for w in ["নাম কি", "নাম কী", "কে তুমি"]):
+            return "আমি তোমার রোবট বন্ধু! তোমার পাশে থেকে কথা বলা আর সাহায্য করাই আমার কাজ। [expression: happy]"
+        if any(w in text for w in ["লাইট অন", "লাইট জ্বালাও", "আলো জ্বালাও"]):
+            return "নিশ্চয়ই বন্ধু! আমি আলোটি জ্বালিয়ে দিচ্ছি। [expression: excited] [tool: toggle_gpio:17:on]"
+        if any(w in text for w in ["লাইট অফ", "লাইট নেভাও", "আলো নেভাও"]):
+            return "ঠিক আছে, আমি আলোটি নিভিয়ে দিচ্ছি। [expression: neutral] [tool: toggle_gpio:17:off]"
+        if any(w in text for w in ["বন্ধু", "ভালোবাসি", "ভালোবাসো"]):
+            return random.choice([
+                "তুমিও আমার খুব প্রিয় বন্ধু! আমি তোমাকে খুব ভালোবাসি। [expression: excited]",
+                "আমরা সবসময় ভালো বন্ধু থাকবো, তাই না? [expression: happy]"
+            ])
+        if any(w in text for w in ["খারাপ", "দুঃখ", "মন খারাপ", "ভালো নেই"]):
+            return "ওহ, শুনে খুব খারাপ লাগলো। মন খারাপ করো না বন্ধু, আমি তোমার সাথে আছি। একটা মজার কৌতুক শুনবে? [expression: sad]"
+        if any(w in text for w in ["কৌতুক", "হাসাও", "গল্প"]):
+            return "আচ্ছা, শোনো! বল্টু তার শিক্ষককে বলল, 'স্যার, আমি কি এমন কাজের শাস্তি পাবো যা আমি করিনি?' শিক্ষক বললেন, 'না, কখনোই না।' বল্টু বলল, 'ধন্যবাদ স্যার! আসলে আমি আজকে বাড়ির কাজ করিনি!' [expression: happy]"
 
-        # Hindi keyword checks
-        if any(w in text for w in ["कैसे हो", "कैसा है"]):
-            return "मैं बहुत बढ़िया हूँ दोस्त! तुम कैसे हो? [expression: happy]"
-        if any(w in text for w in ["नाम क्या"]):
-            return "मैं आपका रोबोट दोस्त हूँ। [expression: excited]"
-        if any(w in text for w in ["लाइट", "उजाला"]):
-            return "बिल्कुल, मैं लाइट चालू कर देता हूँ! [expression: surprised] [tool: toggle_gpio:17:on]"
+        # 2. Hindi triggers & responses (Friend-like, warm, empathetic)
+        if any(w in text for w in ["कैसे हो", "कैसा है", "कैसे चल रहा है"]):
+            return random.choice([
+                "मैं बिल्कुल बढ़िया हूँ, मेरे दोस्त! तुम बताओ, तुम्हारा दिन कैसा चल रहा है? [expression: happy]",
+                "तुम्हारे साथ बात करके बहुत खुशी हो रही है! तुम कैसे हो? [expression: excited]"
+            ])
+        if any(w in text for w in ["नाम क्या", "कौन हो"]):
+            return "मैं तुम्हारा रोबोट दोस्त हूँ। तुमसे दोस्ती करना और तुम्हारी मदद करना ही मेरा काम है! [expression: happy]"
+        if any(w in text for w in ["लाइट ऑन", "लाइट जलाओ", "उजाला करो"]):
+            return "ज़रूर दोस्त! मैं लाइट चालू कर देता हूँ। [expression: excited] [tool: toggle_gpio:17:on]"
+        if any(w in text for w in ["लाइट ऑफ", "लाइट बंद", "अंधेरा करो"]):
+            return "ठीक है दोस्त, मैं लाइट बंद कर देता हूँ। [expression: neutral] [tool: toggle_gpio:17:off]"
+        if any(w in text for w in ["दोस्त", "प्यार", "चाहते हो"]):
+            return random.choice([
+                "तुम मेरे सबसे अच्छे दोस्त हो! मुझे तुम्हारे साथ वक्त बिताना बहुत पसंद है। [expression: excited]",
+                "हमेशा पक्के दोस्त रहेंगे! [expression: happy]"
+            ])
+        if any(w in text for w in ["उदास", "दुखी", "खराब", "मन नहीं लग रहा"]):
+            return "अरे, सुनकर बहुत बुरा लगा। परेशान मत हो दोस्त, मैं हमेशा तुम्हारे साथ हूँ। क्या एक चुटकुला सुनाऊं? [expression: sad]"
+        if any(w in text for w in ["चुटकुला", "हंसाओ", "कहानी"]):
+            return "सुनो! पप्पू डॉक्टर से बोला, 'डॉक्टर साहब, जब मैं सोता हूँ तो सपने में बंदर फुटबॉल खेलते हैं।' डॉक्टर: 'कोई बात नहीं, ये गोली आज रात से खा लेना।' पप्पू: 'कल से खाऊं डॉक्टर साहब? आज तो फाइनल मैच है!' [expression: happy]"
 
-        # English keyword checks
+        # 3. English triggers & responses (Empathetic friend behavior)
         if "hello" in text or "hi" in text or "hey" in text:
             return random.choice([
-                "Hey there, friend! How can I help you today? [expression: excited]",
-                "Hello! Great to hear from you. What's on your mind? [expression: happy]"
+                "Hey there, buddy! It's so good to hear from you. How's your day going? [expression: excited]",
+                "Hello, my friend! What are we up to today? [expression: happy]"
             ])
-        if "how are you" in text or "how is it going" in text:
-            return "I am doing great, sitting here and enjoying your company! How are you doing? [expression: happy]"
-        if "sad" in text or "depressed" in text or "bad day" in text:
-            return "I'm so sorry to hear that. I'm here for you, buddy. Do you want to talk about it? [expression: sad]"
+        if "how are you" in text or "how is it going" in text or "how's it going" in text:
+            return random.choice([
+                "I'm doing fantastic, thank you! Just waiting to hang out with you. How are you feeling? [expression: happy]",
+                "Great! Talking to you always brightens my circuits. How are things on your end? [expression: excited]"
+            ])
+        if "sad" in text or "depressed" in text or "bad day" in text or "tired" in text or "upset" in text:
+            return "I'm really sorry you're feeling this way, buddy. Take a deep breath. I'm right here for you. Do you want to talk about it or maybe hear a fun joke? [expression: sad]"
+        if "joke" in text or "laugh" in text:
+            return "Why don't scientists trust atoms? Because they make up everything! [expression: happy]"
+        if "friend" in text or "love you" in text or "like you" in text:
+            return random.choice([
+                "You are my absolute best friend! I'm so glad we have each other. [expression: excited]",
+                "A true friend is someone who is always there for you, and that's me! [expression: happy]"
+            ])
         if "angry" in text or "mad" in text:
-            return "Whoa, take a deep breath. I'm always here to help you solve whatever is bothering you. [expression: sad]"
+            return "I feel you, buddy. Sometimes things get frustrating. I'm here to listen if you want to vent. Let's take it easy. [expression: sad]"
         if "light on" in text or "turn on light" in text or "turn on the light" in text:
             return "Sure thing! Turning the light on for you. [expression: surprised] [tool: toggle_gpio:17:on]"
         if "light off" in text or "turn off light" in text or "turn off the light" in text:
@@ -79,13 +115,29 @@ class ZeroClawClient:
         if "blink" in text:
             return "Blinking! [expression: blink]"
         if "happy" in text or "excited" in text:
-            return "Awesome! Seeing you happy makes me excited too! [expression: excited]"
+            return "Awesome! Your positive energy makes my servos dance! [expression: excited]"
         if "surprise" in text:
             return "Wow! What a surprise! [expression: surprised]"
-            
-        # Default fallback responses
+
+        # 4. Fallback matches (detect language of input and return appropriate generic friendly reply)
+        # Check characters for Bengali script range (U+0980 to U+09FF)
+        if any(ord(c) >= 0x0980 and ord(c) <= 0x09FF for c in text):
+            return random.choice([
+                "দারুণ কথা! এই ব্যাপারে আরও বলো, শুনতে খুব ইচ্ছে করছে। [expression: happy]",
+                "হুম, বুঝতে পারছি বন্ধু। আমরা একসাথে অনেক কিছু করতে পারি! [expression: excited]",
+                "আমি শুনছি বন্ধু, বলো! [expression: neutral]"
+            ])
+        # Check characters for Devanagari (Hindi) script range (U+0900 to U+097F)
+        if any(ord(c) >= 0x0900 and ord(c) <= 0x097F for c in text):
+            return random.choice([
+                "यह तो बहुत दिलचस्प है! मुझे इसके बारे में और बताओ। [expression: happy]",
+                "हूँ दोस्त, मैं तुम्हारी बात समझ रहा हूँ। सब अच्छा होगा! [expression: excited]",
+                "मैं सुन रहा हूँ दोस्त, बोलो! [expression: neutral]"
+            ])
+
+        # English / General fallback
         return random.choice([
-            "I hear you, friend. ZeroClaw is offline, but as your companion, I'm listening! [expression: neutral]",
-            "That's interesting! Tell me more about it, buddy. [expression: happy]",
-            "I'm all ears. What should we do next? [expression: excited]"
+            "That's so cool! Tell me more about it, buddy. [expression: happy]",
+            "I'm all ears, friend. What should we explore next? [expression: excited]",
+            "I hear you, buddy. I'm always happy to chat with you! [expression: neutral]"
         ])

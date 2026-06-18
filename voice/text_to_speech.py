@@ -4,6 +4,9 @@ import subprocess
 import threading
 import time
 
+class PlaybackProcessWrapper:
+    pass
+
 class TTSManager:
     def __init__(self, config_manager):
         self.config_manager = config_manager
@@ -17,6 +20,10 @@ class TTSManager:
         self.speech_lock = threading.Lock()
         self.is_speaking = False
         
+        # Cache paths
+        self.fillers_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fillers")
+        self.system_cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "system_cache")
+        
         # Temporary file path for audio outputs
         self.temp_audio_file = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
@@ -25,6 +32,9 @@ class TTSManager:
         
         # Track current playback process to support sudden interruptions
         self.current_process = None
+        
+        # Pre-generate caches in the background
+        self.pre_generate_all()
 
     def _get_voice_for_lang(self, lang):
         """Maps standard locale string to Edge-TTS voice names."""
@@ -115,6 +125,28 @@ class TTSManager:
             
         provider = self.config_manager.config.get("voice", {}).get("tts_provider", "edge-tts")
         
+        # Check cache first
+        lang_key = "en"
+        lang_lower = lang.lower()
+        if "bn" in lang_lower:
+            lang_key = "bn"
+        elif "hi" in lang_lower:
+            lang_key = "hi"
+            
+        import hashlib
+        import re
+        # Clean text of bracketed tags like [expression: happy] before hashing/caching
+        cleaned_text = re.sub(r'\[.*?\]', '', text).strip()
+        
+        h = hashlib.md5(f"{lang_key}:{cleaned_text}".encode("utf-8")).hexdigest()
+        cached_filepath = os.path.join(self.system_cache_dir, f"{h}.mp3")
+        
+        if os.path.exists(cached_filepath) and os.path.getsize(cached_filepath) > 0:
+            print(f"[TTS Cache Hit] Playing cached system phrase: {cleaned_text}")
+            self.is_speaking = True
+            threading.Thread(target=self._play_file_thread, args=(cached_filepath,), daemon=True).start()
+            return
+
         # Set speaking status immediately to prevent checking race condition before thread starts
         self.is_speaking = True
         
@@ -216,3 +248,96 @@ class TTSManager:
                         pass
         finally:
             self.is_speaking = False
+
+    def _play_file_thread(self, filepath):
+        self.is_speaking = True
+        try:
+            with self.speech_lock:
+                self.play_audio(filepath)
+        finally:
+            self.is_speaking = False
+
+    def play_filler(self, lang):
+        """Plays a random pre-cached filler for the given language asynchronously."""
+        lang_key = "en"
+        lang_lower = lang.lower()
+        if "bn" in lang_lower:
+            lang_key = "bn"
+        elif "hi" in lang_lower:
+            lang_key = "hi"
+            
+        import random
+        idx = random.randint(0, 2)
+        filepath = os.path.join(self.fillers_dir, f"{lang_key}_filler_{idx}.mp3")
+        
+        if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+            print(f"[TTS Filler] Playing filler for {lang_key}: {filepath}")
+            threading.Thread(target=self._play_file_thread, args=(filepath,), daemon=True).start()
+            return True
+        return False
+
+    def pre_generate_all(self):
+        """Asynchronously pre-generates filler and system audio cache files."""
+        threading.Thread(target=self._pre_generate_thread, daemon=True).start()
+
+    def _pre_generate_thread(self):
+        # Create directories
+        os.makedirs(self.fillers_dir, exist_ok=True)
+        os.makedirs(self.system_cache_dir, exist_ok=True)
+        
+        # Check internet / edge-tts availability
+        try:
+            import edge_tts
+            import asyncio
+        except ImportError:
+            print("[TTS Cache Warning] edge_tts is missing. Skipping cache generation.")
+            return
+
+        # Fillers definition
+        fillers = {
+            "en": ["Hmm, let me think...", "Okay, let's see...", "Right, let me check..."],
+            "bn": ["হুম, আচ্ছা...", "ভাবতে দাও...", "একটু দেখছি..."],
+            "hi": ["हूँ, सोचने दो...", "अच्छा, देखता हूँ...", "एक मिनट..."]
+        }
+        
+        # System phrases definition
+        system_phrases = {
+            "en": ["Yes, friend?", "Goodbye!", "Understood.", "I'm sorry, I couldn't reach my brain."],
+            "bn": ["জি বন্ধু?", "আবার দেখা হবে!", "বুঝতে পেরেছি।", "দুঃখিত, আমি বুঝতে পারিনি।"],
+            "hi": ["हाँ दोस्त?", "फिर मिलेंगे!", "समझ गया।", "माफ़ कीजिये, मैं समझ नहीं पाया।"]
+        }
+
+        async def synthesize(text, voice, path):
+            try:
+                communicate = edge_tts.Communicate(text, voice)
+                await communicate.save(path)
+            except Exception as e:
+                # Silently fail if network/DNS is resolving slow
+                pass
+
+        try:
+            loop = asyncio.new_event_loop()
+            
+            # Synthesize fillers
+            for lang, phrases in fillers.items():
+                voice = self._get_voice_for_lang(lang)
+                for idx, text in enumerate(phrases):
+                    filename = f"{lang}_filler_{idx}.mp3"
+                    filepath = os.path.join(self.fillers_dir, filename)
+                    if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+                        loop.run_until_complete(synthesize(text, voice, filepath))
+
+            # Synthesize system phrases
+            import hashlib
+            for lang, phrases in system_phrases.items():
+                voice = self._get_voice_for_lang(lang)
+                for text in phrases:
+                    h = hashlib.md5(f"{lang}:{text.strip()}".encode("utf-8")).hexdigest()
+                    filepath = os.path.join(self.system_cache_dir, f"{h}.mp3")
+                    if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+                        loop.run_until_complete(synthesize(text, voice, filepath))
+                        
+            loop.close()
+            print("[TTS Cache] Pre-generation completed successfully.")
+        except Exception as e:
+            print(f"[TTS Cache Warning] Pre-generation thread encountered error: {e}")
