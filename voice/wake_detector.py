@@ -13,6 +13,7 @@ class WakeWordDetector:
         self.is_listening = False
         self.paused = False
         self.thread = None
+        self.stream = None
         self.mic_available = (self.stt_manager.recognizer is not None or self.config_manager.config.get("voice", {}).get("wake_word_engine", "google").lower() == "openwakeword")
 
         # Determine wake word engine
@@ -81,6 +82,14 @@ class WakeWordDetector:
     def pause(self):
         """Temporarily pauses wake word detection (releases mic/stream)."""
         self.paused = True
+        if self.stream:
+            try:
+                self.stream.stop_stream()
+                self.stream.close()
+            except Exception as e:
+                pass
+            self.stream = None
+            print("[Wake Detector] Closed PyAudio input stream synchronously on pause.")
         print("[Wake Detector] Suspended wake word detection.")
 
     def resume(self):
@@ -106,7 +115,7 @@ class WakeWordDetector:
         CHUNK = 1280 # 80ms chunk
         
         p = pyaudio.PyAudio()
-        stream = None
+        self.stream = None
         opened_rate = 16000
         
         def open_stream(pa_instance):
@@ -134,20 +143,20 @@ class WakeWordDetector:
             
             while self.is_listening:
                 if self.paused:
-                    if stream:
+                    if self.stream:
                         try:
-                            stream.stop_stream()
-                            stream.close()
+                            self.stream.stop_stream()
+                            self.stream.close()
                         except Exception:
                             pass
-                        stream = None
+                        self.stream = None
                         print("[Wake Detector] Closed PyAudio input stream due to pause.")
                     time.sleep(0.1)
                     continue
                 
-                if not stream:
-                    stream, opened_rate = open_stream(p)
-                    if not stream:
+                if not self.stream:
+                    self.stream, opened_rate = open_stream(p)
+                    if not self.stream:
                         print("[Wake Detector Error] Failed to open PyAudio stream at any supported sample rate.")
                         time.sleep(1.0)
                         continue
@@ -157,7 +166,7 @@ class WakeWordDetector:
                 try:
                     # Read size matches the opened sample rate
                     read_size = int(CHUNK * opened_rate / RATE)
-                    data = stream.read(read_size, exception_on_overflow=False)
+                    data = self.stream.read(read_size, exception_on_overflow=False)
                     if not data:
                         time.sleep(0.01)
                         continue
@@ -185,10 +194,10 @@ class WakeWordDetector:
                 except Exception as e:
                     time.sleep(0.1)
         finally:
-            if stream:
+            if self.stream:
                 try:
-                    stream.stop_stream()
-                    stream.close()
+                    self.stream.stop_stream()
+                    self.stream.close()
                 except Exception:
                     pass
             p.terminate()
