@@ -82,7 +82,8 @@
     "tp1_pin": 24
   },
   "voice": {
-    "wake_word": "jarvis",
+    "wake_word": "bondhu",
+    "wake_word_engine": "openwakeword",
     "wake_sensitivity": 0.5,
     "language": "en-US",
     "speech_threshold": 0.8,
