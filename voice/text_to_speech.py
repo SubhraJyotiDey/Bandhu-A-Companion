@@ -31,6 +31,7 @@ class TTSManager:
         # Determine language and provider from config
         self.language = self.config.get("voice", {}).get("language", "en-US")
         self.provider = self.config.get("voice", {}).get("tts_provider", "edge-tts")
+        self.crt_engine = None
         
         # Audio lock to prevent speech overlapping
         self.speech_lock = threading.Lock()
@@ -120,6 +121,8 @@ class TTSManager:
     def stop(self):
         """Immediately interrupts and terminates any currently playing speech."""
         self.is_speaking = False
+        if hasattr(self, "crt_engine") and self.crt_engine is not None:
+            self.crt_engine.set_subtitle("")
         if self.current_process:
             try:
                 self.current_process.terminate()
@@ -157,6 +160,10 @@ class TTSManager:
         h = hashlib.md5(f"{lang_key}:{cleaned_text}".encode("utf-8")).hexdigest()
         cached_filepath = os.path.join(self.system_cache_dir, f"{h}.mp3")
         
+        # Update CRT subtitles
+        if hasattr(self, "crt_engine") and self.crt_engine is not None:
+            self.crt_engine.set_subtitle(text)
+
         if os.path.exists(cached_filepath) and os.path.getsize(cached_filepath) > 0:
             print(f"[TTS Cache Hit] Playing cached system phrase: {cleaned_text}")
             self.is_speaking = True
@@ -264,6 +271,8 @@ class TTSManager:
                         pass
         finally:
             self.is_speaking = False
+            if hasattr(self, "crt_engine") and self.crt_engine is not None:
+                self.crt_engine.set_subtitle("")
 
     def _play_file_thread(self, filepath):
         self.is_speaking = True
@@ -272,6 +281,8 @@ class TTSManager:
                 self.play_audio(filepath)
         finally:
             self.is_speaking = False
+            if hasattr(self, "crt_engine") and self.crt_engine is not None:
+                self.crt_engine.set_subtitle("")
 
     def play_filler(self, lang):
         """Plays a random pre-cached filler for the given language asynchronously."""

@@ -250,6 +250,7 @@ class CompanionDaemon:
         self.crt_engine = VectorCrtEngine(self.config_manager)
         self.crt_engine.daemon = self
         self.stt.crt_engine = self.crt_engine
+        self.tts.crt_engine = self.crt_engine
         self.games = CompanionGames(self.tts, self.servos)
         self.active_game = None
         

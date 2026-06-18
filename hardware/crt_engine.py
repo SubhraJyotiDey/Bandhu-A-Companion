@@ -129,6 +129,10 @@ class VectorCrtEngine:
         self.angle_x = 0.0
         self.angle_y = 0.0
         
+        # Subtitles state
+        self.tts_text = ""
+        self.tts_start_time = 0.0
+        
     def start(self):
         """Launches the PyAudio stereo streaming output loop and the animation engine thread."""
         if not pyaudio_available:
@@ -182,6 +186,117 @@ class VectorCrtEngine:
         if mode in ["idle", "stt_waveform", "tts_waveform", "tts_mouth", "startup"]:
             self.current_mode = mode
             print(f"[CRT Engine] Mode updated to: {mode}")
+
+    def set_subtitle(self, text):
+        """Sets the spoken text for subtitles and records the starting timestamp."""
+        self.tts_text = text
+        self.tts_start_time = time.time()
+
+    def phonetic_transliterate(self, text):
+        """Phonetic transliteration from Bengali script to Latin script for CRT display."""
+        bengali_phrases = {
+            "নমস্কার বন্ধু, বলুন?": "NAMOSKAR BANDHU, BOLUN?",
+            "নমস্কার বন্ধু, আবার দেখা হবে!": "NAMOSKAR BANDHU, ABAR DEKHA HOBE!",
+            "হ্যাঁ বন্ধু, আমি বুঝতে পেরেছি।": "HA BANDHU, AMI BUZTE PERECHI.",
+            "দুঃখিত বন্ধু, আমি বিষয়টি ঠিক বুঝতে পারলাম না।": "DUKKHIT BANDHU, AMI BISHOYTI BUZTE PARLAM NA.",
+            "বন্ধুরা, এখানে অনেক গোলমাল হচ্ছে। দয়া করে একটু শান্ত হয়ে একজন বলুন, আমি ঠিক শুনতে পাবো।": "BONDHURA, EKHANE ONEK GOLMAL HOCCE. DOYA KORE EKJU SHANTO HOYE EKJON BOLUN.",
+            "ধাঁধা": "DHADHA",
+            "শব্দ-শৃঙ্খল": "SHOBDO SHRINGKHOL",
+            "সংখ্যা খোঁজার খেলা": "SHONGKHA KHOJAR KHELA"
+        }
+        
+        text_stripped = text.strip()
+        if text_stripped in bengali_phrases:
+            return bengali_phrases[text_stripped]
+            
+        char_map = {
+            'অ': 'O', 'আ': 'A', 'ই': 'I', 'ঈ': 'I', 'উ': 'U', 'ঊ': 'U', 'ঋ': 'RI',
+            'এ': 'E', 'ঐ': 'OI', 'ও': 'O', 'ঔ': 'OU',
+            'ক': 'K', 'খ': 'KH', 'গ': 'G', 'ঘ': 'GH', 'ঙ': 'NG',
+            'চ': 'C', 'ছ': 'CH', 'জ': 'J', 'ঝ': 'JH', 'ঞ': 'NY',
+            'ট': 'T', 'ঠ': 'TH', 'ড': 'D', 'ঢ': 'DH', 'ণ': 'N',
+            'ত': 'T', 'থ': 'TH', 'দ': 'D', 'ধ': 'DH', 'ন': 'N',
+            'প': 'P', 'ফ': 'PH', 'ব': 'B', 'ভ': 'BH', 'ম': 'M',
+            'য': 'J', 'র': 'R', 'ল': 'L', 'শ': 'SH', 'ষ': 'SH', 'স': 'S', 'হ': 'H',
+            'ড়': 'R', 'ঢ়': 'RH', 'য়': 'Y', 'ৎ': 'T', 'ং': 'NG', 'ঃ': 'H', 'ঁ': 'N',
+            'া': 'A', 'ি': 'I', 'ী': 'I', 'ু': 'U', 'ূ': 'U', 'ৃ': 'RI', 'ে': 'E', 'ৈ': 'OI', 'ো': 'O', 'ৌ': 'OU'
+        }
+        
+        res = []
+        for c in text:
+            if c in char_map:
+                res.append(char_map[c])
+            elif 'A' <= c.upper() <= 'Z' or '0' <= c <= '9' or c in " ,.!?'-":
+                res.append(c.upper())
+        return "".join(res)
+
+    def get_current_subtitle_chunk(self, text, elapsed_time):
+        """Splits text into chunks of 2-3 words (max 15 chars) and selects the current chunk based on elapsed time."""
+        import re
+        clean_text = re.sub(r'\[.*?\]', '', text).strip()
+        if not clean_text:
+            return ""
+            
+        words = clean_text.split()
+        if not words:
+            return ""
+            
+        chunks = []
+        current_chunk = []
+        current_len = 0
+        for w in words:
+            if current_len + len(w) > 15 and current_chunk:
+                chunks.append(" ".join(current_chunk))
+                current_chunk = [w]
+                current_len = len(w)
+            else:
+                current_chunk.append(w)
+                current_len += len(w) + 1
+        if current_chunk:
+            chunks.append(" ".join(current_chunk))
+            
+        if not chunks:
+            return ""
+            
+        word_count = len(words)
+        estimated_duration = max(1.5, word_count * 0.35)
+        
+        progress = elapsed_time / estimated_duration
+        chunk_idx = int(progress * len(chunks))
+        chunk_idx = max(0, min(chunk_idx, len(chunks) - 1))
+        
+        return chunks[chunk_idx]
+
+    def make_vector_subtitles(self, text, elapsed_time, char_scale=0.035, spacing=0.07, y_offset=-0.75):
+        """Generates coordinate points for current subtitle chunk at the bottom of the CRT."""
+        # 1. Phonetic transliteration for Bengali script
+        phonetic_text = self.phonetic_transliterate(text)
+        
+        # 2. Get current chunk
+        chunk = self.get_current_subtitle_chunk(phonetic_text, elapsed_time)
+        if not chunk:
+            return None
+            
+        # 3. Generate points for the chunk
+        all_points = []
+        total_width = len(chunk) * spacing
+        start_x = -total_width / 2.0 + (spacing / 2.0)
+        
+        for idx, char in enumerate(chunk):
+            stroke_pts = STROKE_FONT.get(char, STROKE_FONT[' '])
+            char_pts = []
+            for stroke in stroke_pts:
+                x = start_x + (idx * spacing) + (stroke[0] * char_scale)
+                y = y_offset + (stroke[1] * char_scale * 1.3)
+                char_pts.append([x, y])
+                
+            if all_points and char_pts:
+                travel = np.linspace(all_points[-1], char_pts[0], 3)
+                all_points.extend(travel.tolist())
+                
+            all_points.extend(char_pts)
+            
+        return np.array(all_points) if all_points else None
 
     def draw_momentary_text(self, text, duration=4.0):
         """Displays a vector text momentarily on the screen before returning to idle mode."""
@@ -372,6 +487,14 @@ class VectorCrtEngine:
                 y = np.clip(samples * 12.0, -0.9, 0.9)
                 x = np.linspace(-0.95, 0.95, len(y))
                 pts = np.column_stack((x, y))
+                
+                if getattr(self, "tts_text", ""):
+                    elapsed = time.time() - getattr(self, "tts_start_time", 0.0)
+                    sub_pts = self.make_vector_subtitles(self.tts_text, elapsed)
+                    if sub_pts is not None and len(pts) > 0:
+                        travel = np.linspace(pts[-1], sub_pts[0], 5)
+                        pts = np.vstack((pts, travel, sub_pts))
+                        
                 with self.buffer_lock:
                     self.active_points = pts
                     
@@ -387,6 +510,14 @@ class VectorCrtEngine:
                 if rms < 0.01:
                     line_pts = np.column_stack((np.linspace(-radius, radius, 20), np.zeros(20)))
                     pts = np.vstack((pts, line_pts))
+                    
+                if getattr(self, "tts_text", ""):
+                    elapsed = time.time() - getattr(self, "tts_start_time", 0.0)
+                    sub_pts = self.make_vector_subtitles(self.tts_text, elapsed)
+                    if sub_pts is not None and len(pts) > 0:
+                        travel = np.linspace(pts[-1], sub_pts[0], 5)
+                        pts = np.vstack((pts, travel, sub_pts))
+                        
                 with self.buffer_lock:
                     self.active_points = pts
                     
