@@ -826,6 +826,15 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 status_msg = f"Active Game: {active_game or 'None'}\nScore: {score}\nRound: {round_num}"
                 return jsonify({"success": True, "message": status_msg})
                 
+            elif tool == "submit_game_input":
+                user_input = args.get("user_input")
+                if not user_input:
+                    return jsonify({"success": False, "error": "Missing user_input."})
+                lang = daemon.config_manager.config.get("voice", {}).get("language", "bn-IN")
+                prompt = daemon.games.handle_input(user_input, lang)
+                daemon.active_game = daemon.games.active_game
+                return jsonify({"success": True, "message": prompt})
+                
         except Exception as ex:
             return jsonify({"success": False, "error": f"Exception in tool execution: {ex}"})
             

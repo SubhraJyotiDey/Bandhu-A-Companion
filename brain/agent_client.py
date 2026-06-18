@@ -38,7 +38,15 @@ class ZeroClawClient:
 
     def _generate_mock_response(self, text):
         """Rule-based friendly chatbot fallback when ZeroClaw is offline."""
+        original_text = text
         text = text.lower().strip()
+        
+        # If in active game, let ZeroClaw agent act as the AI router
+        if hasattr(self, "daemon") and self.daemon and self.daemon.games.active_game:
+            lang = self.daemon.config_manager.config.get("voice", {}).get("language", "bn-IN")
+            if any(p in text for p in ["খেলা বন্ধ", "বন্ধ করো", "খেলব না", "stop game", "exit game", "খেলবো না"]):
+                return "[stop_game]"
+            return self.daemon.games.handle_input(original_text, lang)
         
         # 1. Bangla triggers & responses (Intellectual Kolkata Dialect - Bhadralok style)
         if any(w in text for w in ["কেমন আছ", "কেমন আছো", "কেমন আছেন", "কেমন চলছ", "কেমন চলছে"]):

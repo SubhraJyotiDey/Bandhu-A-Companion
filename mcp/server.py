@@ -181,6 +181,20 @@ def handle_request(req):
                             "type": "object",
                             "properties": {}
                         }
+                    },
+                    {
+                        "name": "submit_game_input",
+                        "description": "Submit user's speech input/answer to the active vocal game for validation and scoring. Returns the game response message.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "user_input": {
+                                    "type": "string",
+                                    "description": "The transcribed speech text spoken by the user."
+                                }
+                            },
+                            "required": ["user_input"]
+                        }
                     }
                 ]
             }

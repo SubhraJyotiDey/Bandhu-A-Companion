@@ -245,6 +245,7 @@ class CompanionDaemon:
         self.tts = TTSManager(self.config_manager)
         self.stt = STTManager(self.config_manager)
         self.brain = ZeroClawClient(self.config_manager)
+        self.brain.daemon = self
         self.games = CompanionGames(self.tts, self.servos)
         self.active_game = None
         
@@ -788,16 +789,6 @@ class CompanionDaemon:
                 self._wait_for_tts_interrupt()
                 continue
 
-            # If in active game, route speech to games engine directly
-            if self.games.active_game:
-                self.log(f"[Games] Processing input for active game '{self.games.active_game}': \"{user_speech}\"")
-                self.games.handle_input(user_speech, lang)
-                self.active_game = self.games.active_game
-                if not self.games.active_game:
-                    self.active_game = None
-                self._wait_for_tts_interrupt()
-                continue
-                
             # Reset silence count on active speech
             silence_count = 0
             
@@ -828,6 +819,12 @@ class CompanionDaemon:
                 
             # Parse and apply tags from agent reply
             self._apply_agent_response_effects(agent_reply)
+            
+            if "[stop_game]" in agent_reply:
+                self.games.stop_game(lang)
+                self.active_game = None
+                self._wait_for_tts_interrupt()
+                continue
             
             if "[trigger_game:" in agent_reply:
                 import re
