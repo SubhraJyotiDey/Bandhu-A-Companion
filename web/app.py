@@ -203,11 +203,15 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
             if "voice" not in config:
                 config["voice"] = {}
             sink_name = str(data["audio_output_sink"])
-            config["voice"]["audio_output_sink"] = sink_name
-            daemon.log(f"[Portal] Setting default PulseAudio output sink to: {sink_name}")
-            if not sys.platform.startswith("win"):
-                import subprocess
-                subprocess.run(f"pactl set-default-sink {sink_name}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            import re
+            if re.match(r'^[a-zA-Z0-9_\-\.]+$', sink_name):
+                config["voice"]["audio_output_sink"] = sink_name
+                daemon.log(f"[Portal] Setting default PulseAudio output sink to: {sink_name}")
+                if not sys.platform.startswith("win"):
+                    import subprocess
+                    subprocess.run(["pactl", "set-default-sink", sink_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                daemon.log(f"[Portal Error] Rejected invalid PulseAudio output sink: {sink_name}")
         if "wake_word" in data:
             config["voice"]["wake_word"] = str(data["wake_word"]).lower()
             daemon.log(f"[Portal] Wake Word set to: {data['wake_word']}")
@@ -481,10 +485,13 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
         daemon.log(f"[Portal] Setting volume for '{sink}' to {volume}%")
         
         if not sys.platform.startswith("win"):
+            import re
+            if not re.match(r'^[a-zA-Z0-9_\-\.]+$', sink):
+                return jsonify({"success": False, "error": "Invalid sink name"})
             import subprocess
             result = subprocess.run(
-                f"pactl set-sink-volume {sink} {volume}%",
-                shell=True, capture_output=True, text=True
+                ["pactl", "set-sink-volume", sink, f"{volume}%"],
+                capture_output=True, text=True
             )
             if result.returncode != 0:
                 daemon.log(f"[Portal] pactl set-sink-volume failed: {result.stderr.strip()}")
@@ -648,48 +655,55 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
         if not text:
             return jsonify({"success": False, "error": "Empty text"})
             
-        def run_flow():
+        with daemon.voice_flow_lock:
+            if daemon.voice_listening_active:
+                return jsonify({"success": False, "error": "Voice session is already active"})
             daemon.voice_listening_active = True
-            daemon.log(f"[Console Input] User typed: \"{text}\"")
-            daemon.servos.mood = "excited"
             
-            # Query ZeroClaw
-            daemon.log("[Console Input] Querying ZeroClaw agent...")
-            agent_reply = daemon.brain.send_message(text)
-            daemon.log(f"[Console Input] Agent reply: \"{agent_reply}\"")
-            
-            # Parse tags
-            mood_tag = "neutral"
-            import re
-            expr_match = re.search(r'\[expression:\s*(\w+)\]', agent_reply)
-            if expr_match:
-                mood_tag = expr_match.group(1).lower()
+        def run_flow():
+            try:
+                daemon.log(f"[Console Input] User typed: \"{text}\"")
+                daemon.servos.mood = "excited"
                 
-            tool_matches = re.findall(r'\[tool:\s*toggle_gpio:\s*(\d+):\s*(\w+)\]', agent_reply)
-            for match in tool_matches:
-                pin_num = int(match[0])
-                pin_state = match[1].lower() == "on"
-                daemon.gpio.set_pin_state(pin_num, pin_state)
-                daemon.servos.play_gesture("nod") # nod to confirm GPIO action
+                # Query ZeroClaw
+                daemon.log("[Console Input] Querying ZeroClaw agent...")
+                agent_reply = daemon.brain.send_message(text)
+                daemon.log(f"[Console Input] Agent reply: \"{agent_reply}\"")
                 
-            if mood_tag == "wink":
-                daemon.servos.trigger_wink()
-            elif mood_tag == "blink":
-                daemon.servos.trigger_blink()
-            elif mood_tag in ["nod", "shake", "think", "shock", "scanning"]:
-                daemon.servos.play_gesture(mood_tag)
-            elif mood_tag in ["happy", "sad", "angry", "surprised", "bored", "excited", "neutral"]:
-                daemon.servos.mood = mood_tag
+                # Parse tags
+                mood_tag = "neutral"
+                import re
+                expr_match = re.search(r'\[expression:\s*(\w+)\]', agent_reply)
+                if expr_match:
+                    mood_tag = expr_match.group(1).lower()
+                    
+                tool_matches = re.findall(r'\[tool:\s*toggle_gpio:\s*(\d+):\s*(\w+)\]', agent_reply)
+                for match in tool_matches:
+                    pin_num = int(match[0])
+                    pin_state = match[1].lower() == "on"
+                    daemon.gpio.set_pin_state(pin_num, pin_state)
+                    daemon.servos.play_gesture("nod") # nod to confirm GPIO action
+                    
+                if mood_tag == "wink":
+                    daemon.servos.trigger_wink()
+                elif mood_tag == "blink":
+                    daemon.servos.trigger_blink()
+                elif mood_tag in ["nod", "shake", "think", "shock", "scanning"]:
+                    daemon.servos.play_gesture(mood_tag)
+                elif mood_tag in ["happy", "sad", "angry", "surprised", "bored", "excited", "neutral"]:
+                    daemon.servos.mood = mood_tag
+                    
+                # Speak
+                daemon.tts.speak(agent_reply)
                 
-            # Speak
-            daemon.tts.speak(agent_reply)
-            
-            # Wait
-            word_cnt = len(agent_reply.split())
-            read_dur = max(3.0, (word_cnt / 150.0) * 60.0)
-            time.sleep(read_dur)
-            daemon.servos.mood = "neutral"
-            daemon.voice_listening_active = False
+                # Wait
+                word_cnt = len(agent_reply.split())
+                read_dur = max(3.0, (word_cnt / 150.0) * 60.0)
+                time.sleep(read_dur)
+                daemon.servos.mood = "neutral"
+            finally:
+                with daemon.voice_flow_lock:
+                    daemon.voice_listening_active = False
 
         threading.Thread(target=run_flow, daemon=True).start()
         return jsonify({"success": True})

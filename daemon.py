@@ -14,12 +14,98 @@ from voice.speech_to_text import STTManager
 from voice.wake_detector import WakeWordDetector
 from brain.agent_client import ZeroClawClient
 
+class ThreadSafeDict(dict):
+    """A dictionary subclass that recursively wraps all dict-like children
+    and implements thread-safe reads and writes using a reentrant lock.
+    """
+    def __init__(self, *args, **kwargs):
+        raw_dict = dict(*args, **kwargs)
+        converted = {}
+        for k, v in raw_dict.items():
+            if isinstance(v, dict):
+                converted[k] = ThreadSafeDict(v)
+            else:
+                converted[k] = v
+        super().__init__(converted)
+        self._lock = threading.RLock()
+
+    def __getitem__(self, key):
+        with self._lock:
+            val = super().__getitem__(key)
+            if isinstance(val, dict) and not isinstance(val, ThreadSafeDict):
+                val = ThreadSafeDict(val)
+                super().__setitem__(key, val)
+            return val
+
+    def __setitem__(self, key, value):
+        with self._lock:
+            if isinstance(value, dict) and not isinstance(value, ThreadSafeDict):
+                value = ThreadSafeDict(value)
+            super().__setitem__(key, value)
+
+    def get(self, key, default=None):
+        with self._lock:
+            try:
+                return self[key]
+            except KeyError:
+                return default
+
+    def __contains__(self, key):
+        with self._lock:
+            return super().__contains__(key)
+
+    def __len__(self):
+        with self._lock:
+            return super().__len__()
+
+    def __repr__(self):
+        with self._lock:
+            return super().__repr__()
+
+    def copy(self):
+        with self._lock:
+            return ThreadSafeDict(super().copy())
+
+    def update(self, *args, **kwargs):
+        with self._lock:
+            super().update(*args, **kwargs)
+            for k, v in list(self.items()):
+                if isinstance(v, dict) and not isinstance(v, ThreadSafeDict):
+                    self[k] = ThreadSafeDict(v)
+
+    def pop(self, key, *args):
+        with self._lock:
+            return super().pop(key, *args)
+
+    def keys(self):
+        with self._lock:
+            return list(super().keys())
+
+    def values(self):
+        with self._lock:
+            return list(super().values())
+
+    def items(self):
+        with self._lock:
+            return list(super().items())
+
+    def to_dict(self):
+        with self._lock:
+            res = {}
+            for k, v in super().items():
+                if isinstance(v, ThreadSafeDict):
+                    res[k] = v.to_dict()
+                else:
+                    res[k] = v
+            return res
+
+
 class ConfigManager:
     """Manages thread-safe read and writes to config.json."""
     def __init__(self, filepath):
         self.filepath = filepath
         self.lock = threading.Lock()
-        self.config = {}
+        self.config = ThreadSafeDict()
         self.load_config()
 
     def load_config(self):
@@ -27,18 +113,20 @@ class ConfigManager:
             if os.path.exists(self.filepath):
                 try:
                     with open(self.filepath, "r", encoding="utf-8") as f:
-                        self.config = json.load(f)
+                        raw = json.load(f)
+                        self.config = ThreadSafeDict(raw)
                 except Exception as e:
                     print(f"[Config Error] Failed to read config.json: {e}")
-                    self.config = {}
+                    self.config = ThreadSafeDict()
             else:
-                self.config = {}
+                self.config = ThreadSafeDict()
 
     def save_config(self):
         with self.lock:
             try:
+                raw_dict = self.config.to_dict()
                 with open(self.filepath, "w", encoding="utf-8") as f:
-                    json.dump(self.config, f, indent=2)
+                    json.dump(raw_dict, f, indent=2)
             except Exception as e:
                 print(f"[Config Error] Failed to write config.json: {e}")
 
@@ -154,6 +242,8 @@ class CompanionDaemon:
         self.is_running = False
         self.voice_listening_active = False
         self.interrupt_speech_flag = False
+        self.voice_flow_lock = threading.Lock()
+        self._audio_snap_active = False
         
         # Initialize TP1 interrupt pin from config (defaults to GPIO 24)
         self.tp1_pin = None
@@ -213,6 +303,11 @@ class CompanionDaemon:
         
         # Start Bluetooth speaker reconnect monitor thread if MAC is configured
         self.bt_mac = self.config_manager.config.get("voice", {}).get("bluetooth_speaker_mac")
+        if self.bt_mac:
+            import re
+            if not re.match(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', self.bt_mac):
+                self.log(f"[Bluetooth Error] Invalid MAC address format in config: {self.bt_mac}")
+                self.bt_mac = None
         if self.bt_mac:
             self.bt_thread = threading.Thread(target=self._bluetooth_monitor_loop, name="BluetoothMonitorLoop")
             self.bt_thread.daemon = True
@@ -494,7 +589,7 @@ class CompanionDaemon:
                 last_connected_state = is_connected
                 
             except Exception as e:
-                pass
+                self.log(f"[Bluetooth Error] Reconnect check exception: {e}")
                 
             time.sleep(10.0)
 
@@ -524,14 +619,16 @@ class CompanionDaemon:
 
     def on_wake_trigger(self):
         """Callback run by wake detector thread when trigger word is captured."""
-        if self.voice_listening_active:
-            if self.tts.is_speaking:
-                self.log("[Voice] Interruption detected! Silencing speech.")
-                self.tts.stop()
-                self.interrupt_speech_flag = True
-            return # Avoid nested listens
-            
-        threading.Thread(target=self._voice_interaction_flow, daemon=True).start()
+        with self.voice_flow_lock:
+            if self.voice_listening_active:
+                if self.tts.is_speaking:
+                    self.log("[Voice] Interruption detected! Silencing speech.")
+                    self.tts.stop()
+                    self.interrupt_speech_flag = True
+                return # Avoid nested listens
+                
+            self.voice_listening_active = True
+            threading.Thread(target=self._voice_interaction_flow, daemon=True).start()
 
     def _wait_for_tts_interrupt(self):
         """Blocks while TTS is speaking, returning True if interrupted, False otherwise."""
@@ -609,6 +706,7 @@ class CompanionDaemon:
             
             # Temporarily pause wake-word detector to prevent mic conflicts on Raspberry Pi
             self.wake_detector.pause()
+            time.sleep(0.2) # Allow ALSA/PulseAudio to release the mic device before STT starts
             try:
                 user_speech = self.stt.listen_and_transcribe(timeout=6, phrase_time_limit=10, lang=lang)
             finally:
@@ -655,13 +753,17 @@ class CompanionDaemon:
             interrupted = self._wait_for_tts_interrupt()
             
         self.servos.mood = "neutral"
-        self.voice_listening_active = False
+        with self.voice_flow_lock:
+            self.voice_listening_active = False
         self.log("[Voice] Conversation session ended. Reverting to wake word detection.")
 
     def trigger_audio_reactive_snap(self, volume=None):
         """Snaps gaze to a random direction and flutters eyelids on loud noise."""
         if self.voice_listening_active or self.tts.is_speaking:
             return # Don't disrupt active speaking/listening session
+            
+        if self._audio_snap_active:
+            return # Throttling overlapping audio snaps
             
         # Select random gaze coordinates within safe bounds
         yaw_cfg = self.config_manager.config.get("servos", {}).get("yaw", {})
@@ -694,5 +796,7 @@ class CompanionDaemon:
             
             # Restore mood
             self.servos.mood = "neutral" if orig_mood == "surprised" else orig_mood
+            self._audio_snap_active = False
             
+        self._audio_snap_active = True
         threading.Thread(target=snap_run, daemon=True).start()

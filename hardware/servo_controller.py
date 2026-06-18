@@ -155,9 +155,9 @@ class ServoController:
             
         # 1. Apply safety clamps to the logical angle before inversion
         if self.manual_override or getattr(self, "calibration_active", False):
-            # Relax limits during active calibration / manual alignment to allow finding physical bounds
-            min_lim = 15.0
-            max_lim = 165.0
+            # Relax limits during active calibration / manual alignment to allow finding physical bounds safely
+            min_lim = 30.0
+            max_lim = 150.0
         else:
             min_lim = cfg.get("min_angle", 40.0)
             max_lim = cfg.get("max_angle", 140.0)

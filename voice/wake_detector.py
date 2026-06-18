@@ -201,6 +201,7 @@ class WakeWordDetector:
                             break
                             
                 except Exception as e:
+                    print(f"[Wake Detector Warning] Exception in openWakeWord prediction: {e}")
                     time.sleep(0.1)
         finally:
             if self.stream:
@@ -314,7 +315,8 @@ class WakeWordDetector:
                     
             except sr.WaitTimeoutError:
                 pass
-            except Exception:
+            except Exception as e:
+                print(f"[Wake Detector Warning] Exception in Google listener loop: {e}")
                 time.sleep(0.5)
             
             time.sleep(0.1)
