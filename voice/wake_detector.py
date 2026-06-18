@@ -107,7 +107,24 @@ class WakeWordDetector:
         
         p = pyaudio.PyAudio()
         stream = None
+        opened_rate = 16000
         
+        def open_stream(pa_instance):
+            rates_to_try = [16000, 48000, 44100]
+            for r in rates_to_try:
+                try:
+                    s = pa_instance.open(
+                        format=FORMAT,
+                        channels=CHANNELS,
+                        rate=r,
+                        input=True,
+                        frames_per_buffer=int(CHUNK * r / RATE)
+                    )
+                    return s, r
+                except Exception:
+                    continue
+            return None, RATE
+
         try:
             # Run a dummy prediction to retrieve loaded model keys regardless of internal openWakeWord version attributes
             dummy_frame = np.zeros(CHUNK, dtype=np.int16)
@@ -129,28 +146,29 @@ class WakeWordDetector:
                     continue
                 
                 if not stream:
-                    try:
-                        stream = p.open(
-                            format=FORMAT,
-                            channels=CHANNELS,
-                            rate=RATE,
-                            input=True,
-                            frames_per_buffer=CHUNK
-                        )
-                        print("[Wake Detector] Opened PyAudio input stream after pause.")
-                    except Exception as e:
-                        print(f"[Wake Detector Error] Failed to open PyAudio stream: {e}")
+                    stream, opened_rate = open_stream(p)
+                    if not stream:
+                        print("[Wake Detector Error] Failed to open PyAudio stream at any supported sample rate.")
                         time.sleep(1.0)
                         continue
+                    else:
+                        print(f"[Wake Detector] Opened PyAudio input stream at {opened_rate} Hz.")
                 
                 try:
-                    data = stream.read(CHUNK, exception_on_overflow=False)
+                    # Read size matches the opened sample rate
+                    read_size = int(CHUNK * opened_rate / RATE)
+                    data = stream.read(read_size, exception_on_overflow=False)
                     if not data:
                         time.sleep(0.01)
                         continue
                         
                     # Convert raw bytes to Float32/Int16 numpy array
                     audio_frame = np.frombuffer(data, dtype=np.int16)
+                    
+                    # Resample if not at native 16000 Hz using linear interpolation
+                    if len(audio_frame) != CHUNK and len(audio_frame) > 0:
+                        indices = np.linspace(0, len(audio_frame) - 1, CHUNK)
+                        audio_frame = np.interp(indices, np.arange(len(audio_frame)), audio_frame).astype(np.int16)
                     
                     # Run prediction
                     prediction = self.oww_model.predict(audio_frame)
