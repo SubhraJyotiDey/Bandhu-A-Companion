@@ -1127,178 +1127,182 @@ class ServoController:
             # 1. AUTONOMOUS ATTENTION SYSTEM (weighted gaze shifts)
             # ----------------------------------------------------------
             if not self.manual_override and not self.face_tracking_active and not self.gesture_active:
-                
-                # --- Curiosity perk-up behavior (periodic alert snap) ---
-                if now > next_curiosity_time and not self._curiosity_active:
-                    self._curiosity_active = True
-                    self._curiosity_phase = 0
-                    self._curiosity_timer = now
-                    # Pick a random "attention" direction
-                    gaze_range = 25.0
-                    self._curiosity_target_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
-                    self._curiosity_target_pitch = 90.0 + random.uniform(-8.0, 5.0)
-                    next_curiosity_time = now + random.uniform(18.0, 40.0)
-                
-                # --- Periodic autonomous idle gestures / self-play ---
-                if now > next_idle_gesture_time and not self.gesture_active and not self._curiosity_active:
-                    idle_g = random.choice([
-                        "idle_roll_eyes", "idle_giggle", "idle_yawn", 
-                        "idle_daydream", "idle_insect_chase", "idle_shy_look", 
-                        "idle_curious_scan", "idle_close_eyes"
-                    ])
-                    self.play_gesture(idle_g)
-                    next_idle_gesture_time = now + random.uniform(12.0, 24.0)
-                
-                if self._curiosity_active:
-                    elapsed_c = now - self._curiosity_timer
-                    if self._curiosity_phase == 0:
-                        # Phase 0: Slow curious look to curiosity target (slower transition)
-                        self.target_pos["yaw"] = self._curiosity_target_yaw
-                        self.target_pos["pitch"] = self._curiosity_target_pitch
-                        # Smooth transition speed
-                        self.speed_k["yaw"] = 2.0
-                        self.speed_k["pitch"] = 2.0
-                        if elapsed_c > 1.0:
-                            self._curiosity_phase = 1
-                            self._curiosity_timer = now
-                            self.trigger_blink()
-                    elif self._curiosity_phase == 1:
-                        # Phase 1: Hold and "inspect" (1.0-1.5s)
-                        # Restore normal speed
-                        self.speed_k["yaw"] = 2.0
-                        self.speed_k["pitch"] = 2.0
-                        if elapsed_c > random.uniform(1.5, 2.5):
-                            self._curiosity_phase = 2
-                            self._curiosity_timer = now
-                    elif self._curiosity_phase == 2:
-                        # Phase 2: Slow drift back toward center
-                        self.speed_k["yaw"] = 1.5
-                        self.speed_k["pitch"] = 1.5
-                        self.target_pos["yaw"] = 90.0 + random.uniform(-4.0, 4.0)
-                        self.target_pos["pitch"] = 90.0
-                        if elapsed_c > 1.8:
-                            self._curiosity_active = False
+                idle_enabled = self.config_manager.config.get("personality", {}).get("idle_behaviors", True)
+                if idle_enabled:
+                    # --- Curiosity perk-up behavior (periodic alert snap) ---
+                    if now > next_curiosity_time and not self._curiosity_active:
+                        self._curiosity_active = True
+                        self._curiosity_phase = 0
+                        self._curiosity_timer = now
+                        # Pick a random "attention" direction
+                        gaze_range = 25.0
+                        self._curiosity_target_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
+                        self._curiosity_target_pitch = 90.0 + random.uniform(-8.0, 5.0)
+                        next_curiosity_time = now + random.uniform(18.0, 40.0)
+                    
+                    # --- Periodic autonomous idle gestures / self-play ---
+                    if now > next_idle_gesture_time and not self.gesture_active and not self._curiosity_active:
+                        idle_g = random.choice([
+                            "idle_roll_eyes", "idle_giggle", "idle_yawn", 
+                            "idle_daydream", "idle_insect_chase", "idle_shy_look", 
+                            "idle_curious_scan", "idle_close_eyes"
+                        ])
+                        self.play_gesture(idle_g)
+                        next_idle_gesture_time = now + random.uniform(12.0, 24.0)
+                    
+                    if self._curiosity_active:
+                        elapsed_c = now - self._curiosity_timer
+                        if self._curiosity_phase == 0:
+                            # Phase 0: Slow curious look to curiosity target (slower transition)
+                            self.target_pos["yaw"] = self._curiosity_target_yaw
+                            self.target_pos["pitch"] = self._curiosity_target_pitch
+                            # Smooth transition speed
                             self.speed_k["yaw"] = 2.0
                             self.speed_k["pitch"] = 2.0
-                            # Reset drift timer so normal drift resumes
-                            drift_timer = now + random.uniform(2.0, 4.0)
-                            drift_elapsed = drift_duration  # Mark drift as complete
-                
-                elif now > drift_timer:
-                    # --- Weighted attention shift selection ---
-                    drift_start_yaw = self.target_pos["yaw"]
-                    drift_start_pitch = self.target_pos["pitch"]
+                            if elapsed_c > 1.0:
+                                self._curiosity_phase = 1
+                                self._curiosity_timer = now
+                                self.trigger_blink()
+                        elif self._curiosity_phase == 1:
+                            # Phase 1: Hold and "inspect" (1.0-1.5s)
+                            # Restore normal speed
+                            self.speed_k["yaw"] = 2.0
+                            self.speed_k["pitch"] = 2.0
+                            if elapsed_c > random.uniform(1.5, 2.5):
+                                self._curiosity_phase = 2
+                                self._curiosity_timer = now
+                        elif self._curiosity_phase == 2:
+                            # Phase 2: Slow drift back toward center
+                            self.speed_k["yaw"] = 1.5
+                            self.speed_k["pitch"] = 1.5
+                            self.target_pos["yaw"] = 90.0 + random.uniform(-4.0, 4.0)
+                            self.target_pos["pitch"] = 90.0
+                            if elapsed_c > 1.8:
+                                self._curiosity_active = False
+                                self.speed_k["yaw"] = 2.0
+                                self.speed_k["pitch"] = 2.0
+                                # Reset drift timer so normal drift resumes
+                                drift_timer = now + random.uniform(2.0, 4.0)
+                                drift_elapsed = drift_duration  # Mark drift as complete
                     
-                    roll = random.random()
-                    
-                    if roll < 0.08:
-                        # 8% — Extreme Curiosity Look (Dart eyes to extreme corners to "explore")
-                        drift_type = "extreme_curiosity"
+                    elif now > drift_timer:
+                        # --- Weighted attention shift selection ---
+                        drift_start_yaw = self.target_pos["yaw"]
+                        drift_start_pitch = self.target_pos["pitch"]
+                        
+                        roll = random.random()
+                        
+                        if roll < 0.08:
+                            # 8% — Extreme Curiosity Look (Dart eyes to extreme corners to "explore")
+                            drift_type = "extreme_curiosity"
+                            yaw_cfg = self.servo_cfgs.get("yaw", {})
+                            pitch_cfg = self.servo_cfgs.get("pitch", {})
+                            
+                            corner = random.choice(["left_up", "left_down", "right_up", "right_down", "far_left", "far_right", "far_up", "far_down"])
+                            
+                            if corner == "left_up":
+                                drift_yaw = yaw_cfg.get("min_angle", 50.0) + random.uniform(0.0, 5.0)
+                                drift_pitch = pitch_cfg.get("min_angle", 60.0) + random.uniform(0.0, 4.0)
+                            elif corner == "left_down":
+                                drift_yaw = yaw_cfg.get("min_angle", 50.0) + random.uniform(0.0, 5.0)
+                                drift_pitch = pitch_cfg.get("max_angle", 120.0) - random.uniform(0.0, 4.0)
+                            elif corner == "right_up":
+                                drift_yaw = yaw_cfg.get("max_angle", 130.0) - random.uniform(0.0, 5.0)
+                                drift_pitch = pitch_cfg.get("min_angle", 60.0) + random.uniform(0.0, 4.0)
+                            elif corner == "right_down":
+                                drift_yaw = yaw_cfg.get("max_angle", 130.0) - random.uniform(0.0, 5.0)
+                                drift_pitch = pitch_cfg.get("max_angle", 120.0) - random.uniform(0.0, 4.0)
+                            elif corner == "far_left":
+                                drift_yaw = yaw_cfg.get("min_angle", 50.0)
+                                drift_pitch = 90.0
+                            elif corner == "far_right":
+                                drift_yaw = yaw_cfg.get("max_angle", 130.0)
+                                drift_pitch = 90.0
+                            elif corner == "far_up":
+                                drift_yaw = 90.0
+                                drift_pitch = pitch_cfg.get("min_angle", 60.0)
+                            else:  # far_down
+                                drift_yaw = 90.0
+                                drift_pitch = pitch_cfg.get("max_angle", 120.0)
+                                
+                            # Widen eyes in curiosity (excited mood baselines)
+                            self.mood = "excited"
+                            
+                            # Sometimes play a quick wink or double blink in self-play
+                            action_roll = random.random()
+                            if action_roll < 0.25:
+                                threading.Thread(target=self.trigger_wink, args=(random.choice(["left", "right"]),), daemon=True).start()
+                            elif action_roll < 0.50:
+                                threading.Thread(target=self.trigger_double_blink, daemon=True).start()
+                                
+                        elif roll < 0.15:
+                            # 7% — Suspicious / Narrows eyes to "inspect" something quietly
+                            drift_type = "suspicious_think"
+                            drift_yaw = 90.0 + random.uniform(-16.0, 16.0)
+                            drift_pitch = 90.0 + random.uniform(-4.0, 2.0)
+                            self.mood = "angry" # Narrows eyelids (angry mood baselines)
+                            
+                            if random.random() < 0.40:
+                                threading.Thread(target=self.play_gesture, args=("think",), daemon=True).start()
+                                
+                        elif roll < 0.65:
+                            # 50% — Micro-glance: subtle look shifts nearby
+                            drift_type = "small"
+                            drift_yaw = drift_start_yaw + random.uniform(-4.0, 4.0)
+                            drift_pitch = drift_start_pitch + random.uniform(-2.5, 2.5)
+                            self.mood = "neutral"
+                            
+                        elif roll < 0.85:
+                            # 20% — Medium shift: purposeful looking around
+                            drift_type = "medium"
+                            gaze_range = 10.0 * self.extroversion
+                            drift_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
+                            drift_pitch = 90.0 + random.uniform(-gaze_range / 2.5, gaze_range / 3.5)
+                            self.mood = "neutral"
+                            
+                        else:
+                            # 10% — Large attention shift
+                            drift_type = "large"
+                            gaze_range = 18.0 * self.extroversion
+                            drift_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
+                            drift_pitch = 90.0 + random.uniform(-6.0, 4.0)
+                            self.mood = "neutral"
+                        
+                        # Clamp drift targets to safe ranges
                         yaw_cfg = self.servo_cfgs.get("yaw", {})
                         pitch_cfg = self.servo_cfgs.get("pitch", {})
+                        drift_yaw = max(yaw_cfg.get("min_angle", 50), min(yaw_cfg.get("max_angle", 130), drift_yaw))
+                        drift_pitch = max(pitch_cfg.get("min_angle", 60), min(pitch_cfg.get("max_angle", 120), drift_pitch))
                         
-                        corner = random.choice(["left_up", "left_down", "right_up", "right_down", "far_left", "far_right", "far_up", "far_down"])
+                        # Mood-specific gaze bias
+                        if self.mood == "sad":
+                            drift_pitch = min(drift_pitch + 8.0, pitch_cfg.get("max_angle", 120))  # Look down
+                        elif self.mood == "bored":
+                            drift_pitch = min(drift_pitch + 5.0, pitch_cfg.get("max_angle", 120))  # Droop
                         
-                        if corner == "left_up":
-                            drift_yaw = yaw_cfg.get("min_angle", 50.0) + random.uniform(0.0, 5.0)
-                            drift_pitch = pitch_cfg.get("min_angle", 60.0) + random.uniform(0.0, 4.0)
-                        elif corner == "left_down":
-                            drift_yaw = yaw_cfg.get("min_angle", 50.0) + random.uniform(0.0, 5.0)
-                            drift_pitch = pitch_cfg.get("max_angle", 120.0) - random.uniform(0.0, 4.0)
-                        elif corner == "right_up":
-                            drift_yaw = yaw_cfg.get("max_angle", 130.0) - random.uniform(0.0, 5.0)
-                            drift_pitch = pitch_cfg.get("min_angle", 60.0) + random.uniform(0.0, 4.0)
-                        elif corner == "right_down":
-                            drift_yaw = yaw_cfg.get("max_angle", 130.0) - random.uniform(0.0, 5.0)
-                            drift_pitch = pitch_cfg.get("max_angle", 120.0) - random.uniform(0.0, 4.0)
-                        elif corner == "far_left":
-                            drift_yaw = yaw_cfg.get("min_angle", 50.0)
-                            drift_pitch = 90.0
-                        elif corner == "far_right":
-                            drift_yaw = yaw_cfg.get("max_angle", 130.0)
-                            drift_pitch = 90.0
-                        elif corner == "far_up":
-                            drift_yaw = 90.0
-                            drift_pitch = pitch_cfg.get("min_angle", 60.0)
-                        else:  # far_down
-                            drift_yaw = 90.0
-                            drift_pitch = pitch_cfg.get("max_angle", 120.0)
-                            
-                        # Widen eyes in curiosity (excited mood baselines)
-                        self.mood = "excited"
+                        # Snap target instantly
+                        self.target_pos["yaw"] = drift_yaw
+                        self.target_pos["pitch"] = drift_pitch
                         
-                        # Sometimes play a quick wink or double blink in self-play
-                        action_roll = random.random()
-                        if action_roll < 0.25:
-                            threading.Thread(target=self.trigger_wink, args=(random.choice(["left", "right"]),), daemon=True).start()
-                        elif action_roll < 0.50:
-                            threading.Thread(target=self.trigger_double_blink, daemon=True).start()
-                            
-                    elif roll < 0.15:
-                        # 7% — Suspicious / Narrows eyes to "inspect" something quietly
-                        drift_type = "suspicious_think"
-                        drift_yaw = 90.0 + random.uniform(-16.0, 16.0)
-                        drift_pitch = 90.0 + random.uniform(-4.0, 2.0)
-                        self.mood = "angry" # Narrows eyelids (angry mood baselines)
+                        # Extroversion scaling factor: higher extroversion -> shorter hold times (active)
+                        hold_multiplier = 1.0 / max(0.2, self.extroversion)
                         
-                        if random.random() < 0.40:
-                            threading.Thread(target=self.play_gesture, args=("think",), daemon=True).start()
-                            
-                    elif roll < 0.65:
-                        # 50% — Micro-glance: subtle look shifts nearby
-                        drift_type = "small"
-                        drift_yaw = drift_start_yaw + random.uniform(-4.0, 4.0)
-                        drift_pitch = drift_start_pitch + random.uniform(-2.5, 2.5)
-                        self.mood = "neutral"
+                        # Set next drift timer based on shift type and personality
+                        if drift_type in ["large", "extreme_curiosity"]:
+                            drift_interval = random.uniform(1.2, 2.5) * hold_multiplier
+                            if drift_type == "large" and random.random() < 0.40:
+                                self.trigger_blink()
+                        elif drift_type in ["medium", "suspicious_think"]:
+                            drift_interval = random.uniform(0.7, 1.5) * hold_multiplier
+                            if random.random() < 0.20:
+                                self.trigger_blink()
+                        else:
+                            drift_interval = random.uniform(0.3, 0.8) * hold_multiplier
                         
-                    elif roll < 0.85:
-                        # 20% — Medium shift: purposeful looking around
-                        drift_type = "medium"
-                        gaze_range = 10.0 * self.extroversion
-                        drift_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
-                        drift_pitch = 90.0 + random.uniform(-gaze_range / 2.5, gaze_range / 3.5)
-                        self.mood = "neutral"
-                        
-                    else:
-                        # 10% — Large attention shift
-                        drift_type = "large"
-                        gaze_range = 18.0 * self.extroversion
-                        drift_yaw = 90.0 + random.uniform(-gaze_range, gaze_range)
-                        drift_pitch = 90.0 + random.uniform(-6.0, 4.0)
-                        self.mood = "neutral"
-                    
-                    # Clamp drift targets to safe ranges
-                    yaw_cfg = self.servo_cfgs.get("yaw", {})
-                    pitch_cfg = self.servo_cfgs.get("pitch", {})
-                    drift_yaw = max(yaw_cfg.get("min_angle", 50), min(yaw_cfg.get("max_angle", 130), drift_yaw))
-                    drift_pitch = max(pitch_cfg.get("min_angle", 60), min(pitch_cfg.get("max_angle", 120), drift_pitch))
-                    
-                    # Mood-specific gaze bias
-                    if self.mood == "sad":
-                        drift_pitch = min(drift_pitch + 8.0, pitch_cfg.get("max_angle", 120))  # Look down
-                    elif self.mood == "bored":
-                        drift_pitch = min(drift_pitch + 5.0, pitch_cfg.get("max_angle", 120))  # Droop
-                    
-                    # Snap target instantly
-                    self.target_pos["yaw"] = drift_yaw
-                    self.target_pos["pitch"] = drift_pitch
-                    
-                    # Extroversion scaling factor: higher extroversion -> shorter hold times (active)
-                    hold_multiplier = 1.0 / max(0.2, self.extroversion)
-                    
-                    # Set next drift timer based on shift type and personality
-                    if drift_type in ["large", "extreme_curiosity"]:
-                        drift_interval = random.uniform(1.2, 2.5) * hold_multiplier
-                        if drift_type == "large" and random.random() < 0.40:
-                            self.trigger_blink()
-                    elif drift_type in ["medium", "suspicious_think"]:
-                        drift_interval = random.uniform(0.7, 1.5) * hold_multiplier
-                        if random.random() < 0.20:
-                            self.trigger_blink()
-                    else:
-                        drift_interval = random.uniform(0.3, 0.8) * hold_multiplier
-                    
-                    drift_timer = now + drift_interval
+                        drift_timer = now + drift_interval
+                else:
+                    self.target_pos["yaw"] = 90.0
+                    self.target_pos["pitch"] = 90.0
 
             # ----------------------------------------------------------
             # Create effective target (add micro-saccades when idle)

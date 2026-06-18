@@ -5,6 +5,64 @@ import threading
 import json
 from flask import Flask, render_template, jsonify, request
 
+START_TIME = time.time()
+
+def get_cpu_temp():
+    if os.path.exists("/sys/class/thermal/thermal_zone0/temp"):
+        try:
+            with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
+                temp_raw = f.read().strip()
+                return round(float(temp_raw) / 1000.0, 1)
+        except Exception:
+            pass
+    return 42.5
+
+def get_ram_usage():
+    if os.path.exists("/proc/meminfo"):
+        try:
+            meminfo = {}
+            with open("/proc/meminfo", "r") as f:
+                for line in f:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        meminfo[parts[0].replace(":", "")] = int(parts[1])
+            total = meminfo.get("MemTotal", 0)
+            free = meminfo.get("MemFree", 0)
+            buffers = meminfo.get("Buffers", 0)
+            cached = meminfo.get("Cached", 0)
+            used = total - (free + buffers + cached)
+            if total > 0:
+                percentage = round((used / total) * 100.0, 1)
+                return {
+                    "used_mb": round(used / 1024.0, 1),
+                    "total_mb": round(total / 1024.0, 1),
+                    "percent": percentage
+                }
+        except Exception:
+            pass
+    return {"used_mb": 1024.0, "total_mb": 4096.0, "percent": 25.0}
+
+def get_uptime():
+    if os.path.exists("/proc/uptime"):
+        try:
+            with open("/proc/uptime", "r") as f:
+                uptime_seconds = float(f.readline().split()[0])
+                hours = int(uptime_seconds // 3600)
+                minutes = int((uptime_seconds % 3600) // 60)
+                seconds = int(uptime_seconds % 60)
+                if hours > 0:
+                    return f"{hours}h {minutes}m"
+                return f"{minutes}m {seconds}s"
+        except Exception:
+            pass
+    uptime_seconds = time.time() - START_TIME
+    hours = int(uptime_seconds // 3600)
+    minutes = int((uptime_seconds % 3600) // 60)
+    seconds = int(uptime_seconds % 60)
+    if hours > 0:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m {seconds}s"
+
 def run_web_portal(daemon, host="0.0.0.0", port=5000):
     # Disable flask logging to keep stdout/stderr clean
     import logging
@@ -64,8 +122,28 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 "wake_sensitivity": daemon.config_manager.config.get("voice", {}).get("wake_sensitivity", 0.5),
                 "auto_language_detection": daemon.config_manager.config.get("voice", {}).get("auto_language_detection", True),
                 "audio_output_sink": daemon.config_manager.config.get("voice", {}).get("audio_output_sink", "aec_sink"),
+                "sound_reactions": daemon.config_manager.config.get("voice", {}).get("sound_reactions", True),
                 "sink_volumes": sink_volumes,
                 "listening": daemon.voice_listening_active
+            },
+            "personality": {
+                "extroversion": daemon.config_manager.config.get("personality", {}).get("extroversion", 0.7),
+                "mood": daemon.servos.mood,
+                "idle_behaviors": daemon.config_manager.config.get("personality", {}).get("idle_behaviors", True)
+            },
+            "sleep_mode": {
+                "enabled": daemon.config_manager.config.get("sleep_mode", {}).get("enabled", False),
+                "sleep_time": daemon.config_manager.config.get("sleep_mode", {}).get("sleep_time", "22:00"),
+                "wake_time": daemon.config_manager.config.get("sleep_mode", {}).get("wake_time", "07:00"),
+                "active": daemon.sleep_active
+            },
+            "intercom": {
+                "active": daemon.intercom_manager.is_recording
+            },
+            "system_health": {
+                "cpu_temp": get_cpu_temp(),
+                "ram": get_ram_usage(),
+                "uptime": get_uptime()
             },
             "alarms": daemon.config_manager.config.get("alarms", []),
             "logs": list(daemon.logs)
@@ -144,6 +222,54 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
             daemon.servos.extroversion = float(data["extroversion"])
             daemon.log(f"[Portal] Extroversion level set to: {data['extroversion']}")
             
+        # Idle behaviors
+        if "idle_behaviors" in data:
+            if "personality" not in config:
+                config["personality"] = {}
+            config["personality"]["idle_behaviors"] = bool(data["idle_behaviors"])
+            daemon.log(f"[Portal] Idle Look-Around Behaviors set to: {config['personality']['idle_behaviors']}")
+            
+        # Sound reactions
+        if "sound_reactions" in data:
+            if "voice" not in config:
+                config["voice"] = {}
+            config["voice"]["sound_reactions"] = bool(data["sound_reactions"])
+            daemon.log(f"[Portal] Ambient Sound Reactions set to: {config['voice']['sound_reactions']}")
+            
+        # Sleep Mode Schedule
+        if "sleep_mode_enabled" in data:
+            if "sleep_mode" not in config:
+                config["sleep_mode"] = {}
+            config["sleep_mode"]["enabled"] = bool(data["sleep_mode_enabled"])
+            daemon.log(f"[Portal] Sleep Mode Schedule enabled: {config['sleep_mode']['enabled']}")
+            if config["sleep_mode"]["enabled"]:
+                from datetime import datetime
+                current_time = datetime.now().strftime("%H:%M")
+                if daemon.is_time_between(current_time, config["sleep_mode"].get("sleep_time", "22:00"), config["sleep_mode"].get("wake_time", "07:00")):
+                    daemon.sleep_active = True
+                    daemon.wake_detector.pause()
+                    daemon.servos.close_eyes()
+                else:
+                    daemon.sleep_active = False
+                    daemon.servos.open_eyes()
+                    daemon.wake_detector.resume()
+            else:
+                daemon.sleep_active = False
+                daemon.servos.open_eyes()
+                daemon.wake_detector.resume()
+                
+        if "sleep_time" in data:
+            if "sleep_mode" not in config:
+                config["sleep_mode"] = {}
+            config["sleep_mode"]["sleep_time"] = str(data["sleep_time"])
+            daemon.log(f"[Portal] Sleep Mode start time set to: {data['sleep_time']}")
+            
+        if "wake_time" in data:
+            if "sleep_mode" not in config:
+                config["sleep_mode"] = {}
+            config["sleep_mode"]["wake_time"] = str(data["wake_time"])
+            daemon.log(f"[Portal] Sleep Mode wake time set to: {data['wake_time']}")
+
         # Mood
         if "mood" in data:
             mood = str(data["mood"]).lower()
@@ -152,7 +278,7 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 daemon.servos.manual_override = False
                 config["personality"]["mood"] = mood
                 daemon.log(f"[Portal] Mood manually set to: {mood}")
-                
+                 
         daemon.config_manager.save_config()
         return jsonify({"success": True})
 
@@ -377,6 +503,132 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
         """Simulates a sudden loud noise trigger from UI."""
         daemon.trigger_audio_reactive_snap(volume=4500.0)
         return jsonify({"success": True})
+
+    @app.route("/api/system/update", methods=["POST"])
+    def system_update():
+        """Pull latest codebase changes from Git remote."""
+        import subprocess
+        daemon.log("[System] OTA Update triggered. Pulling code from git...")
+        try:
+            res = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=15.0)
+            out = res.stdout + "\n" + res.stderr
+            daemon.log(f"[System] Git pull result:\n{out}")
+            return jsonify({"success": res.returncode == 0, "output": out})
+        except Exception as e:
+            daemon.log(f"[System Error] Git pull failed: {e}")
+            return jsonify({"success": False, "error": str(e)})
+
+    @app.route("/api/system/restart", methods=["POST"])
+    def system_restart():
+        """Restart Python daemon process."""
+        daemon.log("[System] Restart request received from portal.")
+        def do_restart():
+            time.sleep(1.0)
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        threading.Thread(target=do_restart, daemon=True).start()
+        return jsonify({"success": True, "message": "Restarting daemon..."})
+
+    @app.route("/api/intercom/toggle", methods=["POST"])
+    def intercom_toggle():
+        """Activate/deactivate intercom mode (two-way audio streaming)."""
+        data = request.json or {}
+        active = bool(data.get("active", False))
+        if active:
+            daemon.intercom_manager.start()
+        else:
+            daemon.intercom_manager.stop()
+        return jsonify({"success": True, "active": daemon.intercom_manager.is_recording})
+
+    @app.route("/api/intercom/play", methods=["POST"])
+    def intercom_play():
+        """Play browser audio chunk on Pi speaker."""
+        if 'file' in request.files:
+            file = request.files['file']
+            import tempfile
+            import subprocess
+            temp_dir = tempfile.gettempdir()
+            temp_path = os.path.join(temp_dir, "intercom_play.wav")
+            file.save(temp_path)
+            
+            if not sys.platform.startswith("win"):
+                def run_play():
+                    subprocess.run(["paplay", temp_path])
+                    try:
+                        os.remove(temp_path)
+                    except Exception:
+                        pass
+                threading.Thread(target=run_play, daemon=True).start()
+            else:
+                daemon.log("[Intercom Mock] Playing received browser audio chunk on Windows.")
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+            return jsonify({"success": True})
+        return jsonify({"success": False, "error": "No file provided"})
+
+    @app.route("/api/intercom/receive", methods=["GET"])
+    def intercom_receive():
+        """Send recorded microphone buffer to dashboard as base64 WAV."""
+        audio_bytes = daemon.intercom_manager.get_audio()
+        if not audio_bytes:
+            return jsonify({"audio": None})
+            
+        import io
+        import wave
+        import base64
+        
+        wav_buf = io.BytesIO()
+        try:
+            with wave.open(wav_buf, 'wb') as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(16000)
+                wav_file.writeframes(audio_bytes)
+            b64_wav = base64.b64encode(wav_buf.getvalue()).decode('utf-8')
+            return jsonify({"audio": b64_wav})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)})
+
+    @app.route("/api/voice/joke", methods=["POST"])
+    def voice_joke():
+        """Triggers a random verbal joke from the companion."""
+        jokes = [
+            "Why don't scientists trust atoms? Because they make up everything!",
+            "What do you call a fake noodle? An impasta!",
+            "Why did the scarecrow win an award? Because he was outstanding in his field!",
+            "Why don't skeletons fight each other? They don't have the guts!",
+            "What do you call a sleeping dinosaur? A dino-snore!",
+            "Why did the bicycle fall over? Because it was two-tired!",
+            "What do you call a cheese that isn't yours? Nacho cheese!",
+            "How do you organize a space party? You planet!"
+        ]
+        import random
+        joke = random.choice(jokes)
+        daemon.log(f"[Entertainment] Telling joke: {joke}")
+        daemon.servos.play_gesture("idle_giggle")
+        daemon.tts.speak(joke)
+        return jsonify({"success": True, "joke": joke})
+
+    @app.route("/api/voice/fact", methods=["POST"])
+    def voice_fact():
+        """Triggers a random verbal fun fact from the companion."""
+        facts = [
+            "Honey never spoils. You could theoretically eat 3000-year-old honey!",
+            "Bananas are berries, but strawberries aren't!",
+            "Wombat poop is cube-shaped, which stops it from rolling away!",
+            "There are more trees on Earth than stars in the Milky Way galaxy!",
+            "Cows have best friends and get stressed when they are separated!",
+            "Octopus has three hearts and blue blood!",
+            "A day on Venus is longer than a year on Venus!",
+            "Sea otters hold hands when they sleep so they don't drift apart!"
+        ]
+        import random
+        fact = random.choice(facts)
+        daemon.log(f"[Entertainment] Telling fun fact: {fact}")
+        daemon.servos.play_gesture("idle_curious_scan")
+        daemon.tts.speak("Did you know? " + fact)
+        return jsonify({"success": True, "fact": fact})
 
     @app.route("/api/servo/gesture", methods=["POST"])
     def trigger_gesture():

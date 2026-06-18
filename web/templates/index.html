@@ -129,7 +129,37 @@
         @media (max-width: 1100px) {
             .dashboard-container {
                 grid-template-columns: 1fr;
+                padding: 15px 20px;
             }
+        }
+
+        @media (max-width: 768px) {
+            header {
+                padding: 15px 20px;
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+            }
+            .status-indicators {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+            .dashboard-container {
+                padding: 10px;
+                gap: 15px;
+            }
+            .servo-card-grid {
+                grid-template-columns: 1fr;
+            }
+            #intercom-pulse {
+                width: 10px;
+                height: 10px;
+            }
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.6; }
+            100% { transform: scale(1.2); opacity: 1; }
         }
 
         /* Glassmorphic Panel Card */
@@ -797,7 +827,68 @@
 
     <div class="dashboard-container">
         <!-- LEFT COLUMN: Diagnostic & Output controllers -->
-        <div class="panel">
+        <div style="display:flex; flex-direction:column; gap:15px">
+            <!-- SYSTEM HEALTH PANEL -->
+            <div class="panel" id="panel-system-health">
+                <div class="panel-title">System Health</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; justify-content: center;">
+                        <span style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">CPU TEMP</span>
+                        <div style="position: relative; width: 70px; height: 70px; display: flex; align-items: center; justify-content: center;">
+                            <svg width="70" height="70" viewBox="0 0 36 36" style="transform: rotate(-90deg);">
+                                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="3" />
+                                <path id="cpu-temp-circle" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="var(--accent-cyan)" stroke-width="3" stroke-dasharray="0, 100" style="transition: stroke-dasharray 0.5s ease;" />
+                            </svg>
+                            <div style="position: absolute; font-size: 12px; font-weight: 800; font-family: 'Share Tech Mono', monospace; color: var(--accent-cyan);" id="label-cpu-temp">--°C</div>
+                        </div>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; justify-content: center; gap: 8px;">
+                        <span style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">RAM USAGE</span>
+                        <div style="font-family: 'Share Tech Mono', monospace; font-size: 12px; font-weight: 600;" id="label-ram-usage">-- MB</div>
+                        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden;">
+                            <div id="ram-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(to right, var(--accent-cyan), var(--accent-pink)); transition: width 0.5s ease;"></div>
+                        </div>
+                        <div style="font-size: 10px; color: var(--text-secondary); text-align: right;" id="label-ram-pct">0%</div>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 8px 12px; font-size: 12px;">
+                    <span style="color: var(--text-secondary)">Uptime:</span>
+                    <span id="label-uptime" style="font-weight: 600; color: #fff; font-family: 'Share Tech Mono', monospace;">--</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5px;">
+                    <button class="btn btn-cyan" onclick="triggerOTAUpdate()" style="font-size: 11px; padding: 6px;">OTA Update</button>
+                    <button class="btn btn-pink" onclick="triggerRestart()" style="font-size: 11px; padding: 6px;">Restart Daemon</button>
+                </div>
+            </div>
+
+            <!-- INTERCOM PANEL -->
+            <div class="panel" id="panel-intercom">
+                <div class="panel-title">
+                    Intercom Mode
+                    <span class="badge" id="badge-intercom" style="padding: 2px 8px; font-size: 9px;"><div class="dot"></div> INACTIVE</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 12px; color: var(--text-secondary);">Enable Intercom</span>
+                        <label class="switch">
+                            <input type="checkbox" id="toggle-intercom" onchange="toggleIntercomMode(this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div id="intercom-controls-row" style="display: none; flex-direction: column; gap: 10px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 12px; color: var(--text-secondary);">Your Mic Status</span>
+                            <span id="intercom-mic-status" style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Muted</span>
+                        </div>
+                        <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
+                            <div id="intercom-pulse" style="width: 12px; height: 12px; border-radius: 50%; background: var(--accent-pink); display: none; box-shadow: 0 0 8px var(--accent-pink); animation: pulse 1s infinite alternate;"></div>
+                            <span style="font-size: 11px; font-style: italic; color: var(--text-secondary)" id="intercom-status-text">Intercom active. Streaming audio.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
             <div class="panel-title">
                 Hardware Feed
                 <span style="font-size:10px; color:var(--text-secondary)">Drag to Move Eyes</span>
@@ -944,12 +1035,17 @@
                     </div>
                     <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-secondary); margin-top: 15px; width: 100%; text-align: left; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">Predefined Gestures</div>
                     <div class="mood-buttons" style="margin-top: 5px; margin-bottom: 5px;">
-                        <button class="btn btn-cyan" onclick="triggerGesture('startup')">Startup</button>
-                        <button class="btn btn-cyan" onclick="triggerGesture('nod')">Nod</button>
-                        <button class="btn btn-cyan" onclick="triggerGesture('shake')">Shake</button>
-                        <button class="btn btn-cyan" onclick="triggerGesture('think')">Think</button>
-                        <button class="btn btn-cyan" onclick="triggerGesture('shock')">Shock</button>
-                        <button class="btn btn-cyan" onclick="triggerGesture('scanning')">Scan</button>
+                          <button class="btn btn-cyan" onclick="triggerGesture('startup')">Startup</button>
+                          <button class="btn btn-cyan" onclick="triggerGesture('nod')">Nod</button>
+                          <button class="btn btn-cyan" onclick="triggerGesture('shake')">Shake</button>
+                          <button class="btn btn-cyan" onclick="triggerGesture('think')">Think</button>
+                          <button class="btn btn-cyan" onclick="triggerGesture('shock')">Shock</button>
+                          <button class="btn btn-cyan" onclick="triggerGesture('scanning')">Scan</button>
+                    </div>
+                    <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-secondary); margin-top: 10px; width: 100%; text-align: left; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">Verbal Entertainment</div>
+                    <div class="mood-buttons" style="margin-top: 5px; margin-bottom: 5px;">
+                          <button class="btn btn-pink" onclick="tellAJoke()">Tell a Joke</button>
+                          <button class="btn btn-pink" onclick="tellAFact()">Tell a Fact</button>
                     </div>
                     <div style="width: 100%; display: flex; flex-direction: column; gap: 5px; margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
                         <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary);">
@@ -1019,6 +1115,49 @@
                                     style="width: 100%; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.1); outline: none; -webkit-appearance: none; cursor: pointer;">
                             </div>
                             <div style="font-size: 9px; color: rgba(255,255,255,0.25); margin-top: 2px;">Drag beyond 100% to amplify (max 150%)</div>
+                        </div>
+                    </div>
+                    
+                    <!-- AUTONOMOUS BEHAVIORS -->
+                    <div style="width: 100%; display: flex; flex-direction: column; gap: 10px; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
+                        <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary);">AUTONOMOUS BEHAVIORS</span>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 11px; color: var(--text-secondary);">IDLE LOOK-AROUND</span>
+                            <label class="switch">
+                                <input type="checkbox" id="toggle-idle-behaviors" onchange="setIdleBehaviors(this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 11px; color: var(--text-secondary);">SOUND REACTIONS</span>
+                            <label class="switch">
+                                <input type="checkbox" id="toggle-sound-reactions" onchange="setSoundReactions(this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- SLEEP MODE SCHEDULE -->
+                    <div style="width: 100%; display: flex; flex-direction: column; gap: 10px; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary);">SLEEP MODE SCHEDULE</span>
+                            <label class="switch">
+                                <input type="checkbox" id="toggle-sleep-enabled" onchange="setSleepEnabled(this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div id="sleep-schedule-form" style="display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display: flex; gap: 10px; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 11px; color: var(--text-secondary);">Sleep Time:</span>
+                                <input type="time" id="sleep-time-input" onchange="saveSleepSchedule()" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; color: #fff; padding: 4px; font-size: 11px; outline: none; width: 100px;">
+                            </div>
+                            <div style="display: flex; gap: 10px; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 11px; color: var(--text-secondary);">Wake Time:</span>
+                                <input type="time" id="wake-time-input" onchange="saveSleepSchedule()" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; color: #fff; padding: 4px; font-size: 11px; outline: none; width: 100px;">
+                            </div>
+                            <div id="sleep-status-banner" style="display: none; font-size: 11px; color: var(--accent-pink); font-weight: 600; text-align: center; background: rgba(255, 0, 127, 0.1); border: 1px solid rgba(255, 0, 127, 0.2); border-radius: 6px; padding: 6px; margin-top: 4px;">
+                                💤 Sleeping Mode Active
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1284,6 +1423,107 @@
                 const fbPitch = document.getElementById("feedback-pitch");
                 if (fbYaw) fbYaw.innerText = `${Math.round(data.servo.target.yaw)}° (current: ${Math.round(data.servo.current.yaw)}°)`;
                 if (fbPitch) fbPitch.innerText = `${Math.round(data.servo.target.pitch)}° (current: ${Math.round(data.servo.current.pitch)}°)`;
+            }
+
+            // ------------------------------------------------------
+            // UPDATE SYSTEM HEALTH
+            // ------------------------------------------------------
+            if (data.system_health) {
+                const temp = data.system_health.cpu_temp;
+                const ram = data.system_health.ram;
+                const uptime = data.system_health.uptime;
+                
+                // Temp
+                const tempLabel = document.getElementById("label-cpu-temp");
+                if (tempLabel) tempLabel.innerText = `${temp}°C`;
+                const tempCircle = document.getElementById("cpu-temp-circle");
+                if (tempCircle) {
+                    const pct = Math.max(0, Math.min(100, ((temp - 20) / 60) * 100));
+                    tempCircle.setAttribute("stroke-dasharray", `${pct}, 100`);
+                    if (temp > 65) tempCircle.setAttribute("stroke", "var(--accent-pink)");
+                    else tempCircle.setAttribute("stroke", "var(--accent-cyan)");
+                }
+                
+                // RAM
+                const ramLabel = document.getElementById("label-ram-usage");
+                if (ramLabel) ramLabel.innerText = `${ram.used_mb} / ${ram.total_mb} MB`;
+                const ramBar = document.getElementById("ram-progress-bar");
+                if (ramBar) ramBar.style.width = `${ram.percent}%`;
+                const ramPct = document.getElementById("label-ram-pct");
+                if (ramPct) ramPct.innerText = `${ram.percent}%`;
+                
+                // Uptime
+                const uptimeLabel = document.getElementById("label-uptime");
+                if (uptimeLabel) uptimeLabel.innerText = uptime;
+            }
+
+            // ------------------------------------------------------
+            // UPDATE GENERAL SETTINGS (Idle Behaviors, Sound Reactions)
+            // ------------------------------------------------------
+            if (data.personality) {
+                const idleChk = document.getElementById("toggle-idle-behaviors");
+                if (idleChk && document.activeElement !== idleChk) {
+                    idleChk.checked = data.personality.idle_behaviors;
+                }
+            }
+            if (data.voice && data.voice.sound_reactions !== undefined) {
+                const soundChk = document.getElementById("toggle-sound-reactions");
+                if (soundChk && document.activeElement !== soundChk) {
+                    soundChk.checked = data.voice.sound_reactions;
+                }
+            }
+
+            // ------------------------------------------------------
+            // UPDATE SLEEP SCHEDULE UI
+            // ------------------------------------------------------
+            if (data.sleep_mode) {
+                const sleepChk = document.getElementById("toggle-sleep-enabled");
+                if (sleepChk && document.activeElement !== sleepChk) {
+                    sleepChk.checked = data.sleep_mode.enabled;
+                }
+                const sleepTimeIn = document.getElementById("sleep-time-input");
+                if (sleepTimeIn && document.activeElement !== sleepTimeIn) {
+                    sleepTimeIn.value = data.sleep_mode.sleep_time;
+                }
+                const wakeTimeIn = document.getElementById("wake-time-input");
+                if (wakeTimeIn && document.activeElement !== wakeTimeIn) {
+                    wakeTimeIn.value = data.sleep_mode.wake_time;
+                }
+                const sleepBanner = document.getElementById("sleep-status-banner");
+                if (sleepBanner) {
+                    sleepBanner.style.display = data.sleep_mode.active ? "block" : "none";
+                }
+            }
+
+            // ------------------------------------------------------
+            // UPDATE INTERCOM UI
+            // ------------------------------------------------------
+            if (data.intercom) {
+                const intercomChk = document.getElementById("toggle-intercom");
+                if (intercomChk && document.activeElement !== intercomChk) {
+                    intercomChk.checked = data.intercom.active;
+                }
+                const intercomBadge = document.getElementById("badge-intercom");
+                const intercomControlsRow = document.getElementById("intercom-controls-row");
+                if (intercomBadge) {
+                    if (data.intercom.active) {
+                        intercomBadge.innerHTML = '<div class="dot"></div> ACTIVE';
+                        intercomBadge.className = "badge active-pink";
+                        if (intercomControlsRow) intercomControlsRow.style.display = "flex";
+                        if (!isIntercomActive) {
+                            isIntercomActive = true;
+                            startIntercomAudio();
+                        }
+                    } else {
+                        intercomBadge.innerHTML = '<div class="dot"></div> INACTIVE';
+                        intercomBadge.className = "badge";
+                        if (intercomControlsRow) intercomControlsRow.style.display = "none";
+                        if (isIntercomActive) {
+                            isIntercomActive = false;
+                            stopIntercomAudio();
+                        }
+                    }
+                }
             }
         }
 
@@ -2111,50 +2351,244 @@
                 });
         }
 
-        function saveSymmetryAlignment() {
-            const leftName = symWizardGroup === "upper" ? "left_upper_eyelid" : "left_lower_eyelid";
-            const rightName = symWizardGroup === "upper" ? "right_upper_eyelid" : "right_lower_eyelid";
-            
-            const leftPayload = { name: leftName };
-            const rightPayload = { name: rightName };
-            
-            if (symWizardLevel === "open") {
-                if (symWizardGroup === "upper") {
-                    leftPayload.min_angle = symLeftAngle;
-                    rightPayload.min_angle = symRightAngle;
-                } else {
-                    leftPayload.max_angle = symLeftAngle;
-                    rightPayload.max_angle = symRightAngle;
-                }
-            } else if (symWizardLevel === "close") {
-                leftPayload.close_angle = symLeftAngle;
-                rightPayload.close_angle = symRightAngle;
-            } else {
-                const nominalBase = symWizardGroup === "upper" ? 92.0 : 116.0;
-                leftPayload.trim = symLeftAngle - nominalBase;
-                rightPayload.trim = symRightAngle - nominalBase;
+        function setIdleBehaviors(checked) {
+            fetch("/api/settings", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({idle_behaviors: checked})
+            });
+        }
+
+        function setSoundReactions(checked) {
+            fetch("/api/settings", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({sound_reactions: checked})
+            });
+        }
+
+        function setSleepEnabled(checked) {
+            fetch("/api/settings", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({sleep_mode_enabled: checked})
+            });
+        }
+
+        function saveSleepSchedule() {
+            const sleepTime = document.getElementById("sleep-time-input").value;
+            const wakeTime = document.getElementById("wake-time-input").value;
+            fetch("/api/settings", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({sleep_time: sleepTime, wake_time: wakeTime})
+            });
+        }
+
+        function triggerOTAUpdate() {
+            if (!confirm("Are you sure you want to pull latest code from git?")) return;
+            const logBox = document.getElementById("console-logs");
+            if (logBox) logBox.innerHTML += "<div class='text-cyan'>[System] OTA Update triggered. Git pull in progress...</div>";
+            fetch("/api/system/update", { method: "POST" })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert("Update completed successfully!\n\nOutput:\n" + data.output);
+                    } else {
+                        alert("Update failed:\n\nError:\n" + data.error);
+                    }
+                })
+                .catch(err => alert("OTA Error: " + err));
+        }
+
+        function triggerRestart() {
+            if (!confirm("Are you sure you want to restart the companion daemon?")) return;
+            fetch("/api/system/restart", { method: "POST" })
+                .then(() => alert("Restart request sent. The daemon will restart now."))
+                .catch(err => alert("Restart Error: " + err));
+        }
+
+        function toggleIntercomMode(checked) {
+            fetch("/api/intercom/toggle", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({active: checked})
+            });
+        }
+
+        function tellAJoke() {
+            fetch("/api/voice/joke", { method: "POST" });
+        }
+
+        function tellAFact() {
+            fetch("/api/voice/fact", { method: "POST" });
+        }
+
+        // Web Audio Intercom Loop Implementation
+        let intercomMicStream = null;
+        let intercomAudioCtx = null;
+        let intercomRecorderNode = null;
+        let intercomReceiveInterval = null;
+        let intercomPlaybackTime = 0;
+        let isIntercomActive = false;
+
+        function startIntercomAudio() {
+            console.log("[Intercom] Starting intercom session...");
+            const micLabel = document.getElementById("intercom-mic-status");
+            if (micLabel) {
+                micLabel.innerText = "Streaming";
+                micLabel.style.color = "var(--accent-cyan)";
+            }
+            const pulse = document.getElementById("intercom-pulse");
+            if (pulse) pulse.style.display = "block";
+
+            // 1. Browser Mic -> Play on Pi
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(stream => {
+                        intercomMicStream = stream;
+                        intercomAudioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                        const source = intercomAudioCtx.createMediaStreamSource(stream);
+                        intercomRecorderNode = intercomAudioCtx.createScriptProcessor(4096, 1, 1);
+                        
+                        let pcmBuffer = [];
+                        intercomRecorderNode.onaudioprocess = function(e) {
+                            if (!isIntercomActive) return;
+                            const inputData = e.inputBuffer.getChannelData(0);
+                            pcmBuffer.push(...inputData);
+                            
+                            // 1 second buffer chunks
+                            if (pcmBuffer.length >= 16000) {
+                                const chunk = pcmBuffer.slice(0, 16000);
+                                pcmBuffer = pcmBuffer.slice(16000);
+                                
+                                const wavBlob = encodeWAV(new Float32Array(chunk), 16000);
+                                const fd = new FormData();
+                                fd.append('file', wavBlob, 'intercom_browser_voice.wav');
+                                
+                                fetch('/api/intercom/play', {
+                                    method: 'POST',
+                                    body: fd
+                                }).catch(err => console.error("Intercom voice upload failed:", err));
+                            }
+                        };
+                        
+                        source.connect(intercomRecorderNode);
+                        intercomRecorderNode.connect(intercomAudioCtx.destination);
+                    })
+                    .catch(err => {
+                        console.error("Browser mic permission issue:", err);
+                        if (micLabel) {
+                            micLabel.innerText = "Permission Denied";
+                            micLabel.style.color = "var(--accent-pink)";
+                        }
+                    });
+            }
+
+            // 2. Pi Mic -> Play on Browser
+            intercomReceiveInterval = setInterval(() => {
+                if (!isIntercomActive) return;
+                fetch("/api/intercom/receive")
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.audio) {
+                            playReceivedWavChunk(data.audio);
+                        }
+                    })
+                    .catch(err => console.error("Intercom receive request failed:", err));
+            }, 500);
+        }
+
+        function stopIntercomAudio() {
+            console.log("[Intercom] Stopping intercom session...");
+            const micLabel = document.getElementById("intercom-mic-status");
+            if (micLabel) {
+                micLabel.innerText = "Muted";
+                micLabel.style.color = "var(--text-secondary)";
+            }
+            const pulse = document.getElementById("intercom-pulse");
+            if (pulse) pulse.style.display = "none";
+
+            if (intercomMicStream) {
+                intercomMicStream.getTracks().forEach(track => track.stop());
+                intercomMicStream = null;
+            }
+            if (intercomRecorderNode) {
+                intercomRecorderNode.disconnect();
+                intercomRecorderNode = null;
+            }
+            if (intercomAudioCtx) {
+                intercomAudioCtx.close().catch(() => {});
+                intercomAudioCtx = null;
+            }
+            if (intercomReceiveInterval) {
+                clearInterval(intercomReceiveInterval);
+                intercomReceiveInterval = null;
+            }
+            intercomPlaybackTime = 0;
+        }
+
+        function playReceivedWavChunk(base64Wav) {
+            const audioData = atob(base64Wav);
+            const arrayBuffer = new ArrayBuffer(audioData.length);
+            const view = new Uint8Array(arrayBuffer);
+            for (let i = 0; i < audioData.length; i++) {
+                view[i] = audioData.charCodeAt(i);
             }
             
-            Promise.all([
-                fetch("/api/servo/calibrate", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify(leftPayload)
-                }),
-                fetch("/api/servo/calibrate", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify(rightPayload)
-                })
-            ])
-            .then(() => {
-                fetchFullCalibrationValues();
-                alert("Symmetry alignment saved successfully!");
-                closeSymmetryWizard();
-            })
-            .catch(err => {
-                alert("Error saving alignment parameters: " + err);
+            if (!intercomAudioCtx) {
+                intercomAudioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+            }
+            
+            intercomAudioCtx.decodeAudioData(arrayBuffer, function(decodedBuffer) {
+                const source = intercomAudioCtx.createBufferSource();
+                source.buffer = decodedBuffer;
+                source.connect(intercomAudioCtx.destination);
+                
+                const now = intercomAudioCtx.currentTime;
+                if (intercomPlaybackTime < now) {
+                    intercomPlaybackTime = now;
+                }
+                source.start(intercomPlaybackTime);
+                intercomPlaybackTime += decodedBuffer.duration;
+            }, function(err) {
+                console.error("Intercom WAV decode failure:", err);
             });
+        }
+
+        function encodeWAV(samples, sampleRate = 16000) {
+            const buffer = new ArrayBuffer(44 + samples.length * 2);
+            const view = new DataView(buffer);
+            
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + samples.length * 2, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, samples.length * 2, true);
+            
+            floatTo16BitPCM(view, 44, samples);
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        function floatTo16BitPCM(output, offset, input) {
+            for (let i = 0; i < input.length; i++, offset += 2) {
+                const s = Math.max(-1, Math.min(1, input[i]));
+                output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+            }
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
         }
     </script>
 </body>

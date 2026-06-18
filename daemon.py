@@ -43,6 +43,83 @@ class ConfigManager:
                 print(f"[Config Error] Failed to write config.json: {e}")
 
 
+class IntercomManager:
+    def __init__(self, daemon):
+        self.daemon = daemon
+        self.buffer = bytearray()
+        self.lock = threading.Lock()
+        self.is_recording = False
+        self.thread = None
+        
+    def start(self):
+        with self.lock:
+            if self.is_recording:
+                return
+            self.is_recording = True
+            self.buffer.clear()
+            self.daemon.wake_detector.pause()
+            self.thread = threading.Thread(target=self._record_loop, name="IntercomRecordLoop", daemon=True)
+            self.thread.start()
+            self.daemon.log("[Intercom] Intercom Mode activated (wake word suspended).")
+            
+    def stop(self):
+        with self.lock:
+            if not self.is_recording:
+                return
+            self.is_recording = False
+            self.daemon.wake_detector.resume()
+            self.daemon.log("[Intercom] Intercom Mode deactivated (wake word resumed).")
+            
+    def get_audio(self):
+        with self.lock:
+            data = bytes(self.buffer)
+            self.buffer.clear()
+            return data
+            
+    def _record_loop(self):
+        try:
+            import pyaudio
+        except ImportError:
+            self.daemon.log("[Intercom Warning] PyAudio is missing. Running in mock intercom mode.")
+            while self.is_recording:
+                time.sleep(0.1)
+            return
+            
+        p = pyaudio.PyAudio()
+        try:
+            stream = p.open(
+                format=pyaudio.paInt16,
+                channels=1,
+                rate=16000,
+                input=True,
+                frames_per_buffer=1024
+            )
+        except Exception as e:
+            self.daemon.log(f"[Intercom Error] Failed to open microphone: {e}")
+            p.terminate()
+            return
+            
+        self.daemon.log("[Intercom] Companion microphone streaming active.")
+        while self.is_recording:
+            try:
+                data = stream.read(1024, exception_on_overflow=False)
+                if data:
+                    with self.lock:
+                        self.buffer.extend(data)
+                        if len(self.buffer) > 160000:
+                            self.buffer = self.buffer[-160000:]
+            except Exception:
+                time.sleep(0.01)
+                
+        try:
+            stream.stop_stream()
+            stream.close()
+        except Exception:
+            pass
+        p.terminate()
+        self.daemon.log("[Intercom] Companion microphone streaming stopped.")
+
+
 class CompanionDaemon:
     def __init__(self):
         # Resolve config.json path
@@ -67,6 +144,12 @@ class CompanionDaemon:
         # Wake word detector
         self.wake_detector = WakeWordDetector(self.config_manager, self.stt, self.on_wake_trigger, self.trigger_audio_reactive_snap)
         
+        # Intercom manager
+        self.intercom_manager = IntercomManager(self)
+        
+        # Sleep mode status tracking
+        self.sleep_active = False
+        
         # Control flags
         self.is_running = False
         self.voice_listening_active = False
@@ -89,6 +172,21 @@ class CompanionDaemon:
         
         # Dynamic tracking state
         self.last_face_time = 0.0
+
+    def is_time_between(self, t, start, end):
+        try:
+            th, tm = map(int, t.split(":"))
+            sh, sm = map(int, start.split(":"))
+            eh, em = map(int, end.split(":"))
+            t_min = th * 60 + tm
+            s_min = sh * 60 + sm
+            e_min = eh * 60 + em
+            if s_min <= e_min:
+                return s_min <= t_min < e_min
+            else: # Crosses midnight
+                return t_min >= s_min or t_min < e_min
+        except Exception:
+            return False
 
     def log(self, message):
         """Append a log message to the memory buffer."""
@@ -129,8 +227,19 @@ class CompanionDaemon:
         self.scheduler_thread.daemon = True
         self.scheduler_thread.start()
         
+        # Check initial sleep mode state
+        sleep_cfg = self.config_manager.config.get("sleep_mode", {})
+        if sleep_cfg.get("enabled", False):
+            current_time = datetime.now().strftime("%H:%M")
+            if self.is_time_between(current_time, sleep_cfg.get("sleep_time", "22:00"), sleep_cfg.get("wake_time", "07:00")):
+                self.sleep_active = True
+                self.wake_detector.pause()
+                self.servos.close_eyes()
+                self.log("[Sleep Mode] Daemon started during sleep hours. Entering sleep mode.")
+        
         # Trigger Startup eye gesture
-        self.servos.play_gesture("startup")
+        if not self.sleep_active:
+            self.servos.play_gesture("startup")
         
         self.log("[Daemon] Companion Daemon successfully started in background.")
 
@@ -293,6 +402,25 @@ class CompanionDaemon:
             
             # Check once per minute to avoid duplicate triggers
             if current_time_str != last_minute:
+                # Sleep Mode Schedule logic
+                sleep_cfg = self.config_manager.config.get("sleep_mode", {})
+                if sleep_cfg.get("enabled", False):
+                    sleep_time = sleep_cfg.get("sleep_time", "22:00")
+                    wake_time = sleep_cfg.get("wake_time", "07:00")
+                    
+                    if current_time_str == sleep_time and not self.sleep_active:
+                        self.sleep_active = True
+                        self.wake_detector.pause()
+                        self.servos.close_eyes()
+                        self.log("[Sleep Mode] Scheduled time reached. Sleep mode activated.")
+                        
+                    elif current_time_str == wake_time and self.sleep_active:
+                        self.sleep_active = False
+                        self.servos.open_eyes()
+                        self.wake_detector.resume()
+                        self.servos.play_gesture("startup")
+                        self.log("[Sleep Mode] Scheduled time reached. Sleep mode deactivated.")
+
                 alarms = self.config_manager.config.get("alarms", [])
                 for alarm in alarms:
                     if alarm.get("enabled", False) and alarm.get("time") == current_time_str:

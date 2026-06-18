@@ -174,6 +174,15 @@ class WakeWordDetector:
                     # Convert raw bytes to Float32/Int16 numpy array
                     audio_frame = np.frombuffer(data, dtype=np.int16)
                     
+                    # Calculate RMS for sound reaction
+                    sound_enabled = self.config_manager.config.get("voice", {}).get("sound_reactions", True)
+                    if sound_enabled and self.noise_callback and len(audio_frame) > 0:
+                        rms = np.sqrt(np.mean(audio_frame.astype(np.float32)**2))
+                        if rms > 2500.0:
+                            print(f"[Wake Detector] Loud noise detected in OWW loop (volume: {int(rms)}). Triggering snap callback.")
+                            self.noise_callback(rms)
+                            time.sleep(2.0)
+                    
                     # Resample if not at native 16000 Hz using linear interpolation
                     if len(audio_frame) != CHUNK and len(audio_frame) > 0:
                         indices = np.linspace(0, len(audio_frame) - 1, CHUNK)
@@ -246,7 +255,7 @@ class WakeWordDetector:
                     sum_squares = sum(s * s for s in shorts)
                     rms = (sum_squares / count) ** 0.5
                 
-                is_loud_noise = rms > 2500.0
+                is_loud_noise = rms > 2500.0 and self.config_manager.config.get("voice", {}).get("sound_reactions", True)
                 
                 # Try to transcribe
                 lang_code = "en-US"
