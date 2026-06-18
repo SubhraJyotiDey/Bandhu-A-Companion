@@ -974,6 +974,15 @@
                                 <span class="slider"></span>
                             </label>
                         </div>
+                        <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 8px;">
+                            <span style="font-size: 11px; color: var(--text-secondary);">AUDIO OUTPUT DESTINATION</span>
+                            <select id="select-audio-output" onchange="setAudioOutput(this.value)" style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; padding: 6px 10px; font-size: 12px; outline: none; cursor: pointer;">
+                                <option value="aec_sink">Echo Cancelled (AEC)</option>
+                                <option value="bluez_sink.41_42_9D_09_4D_D3.a2dp_sink">Bluetooth Speaker</option>
+                                <option value="alsa_output.usb-GeneralPlus_USB_Audio_Device-00.analog-stereo">USB Sound Card (CRT)</option>
+                                <option value="combined">Combined (Both Outputs)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -1136,6 +1145,14 @@
                 const autoLangChk = document.getElementById("toggle-auto-lang");
                 if (autoLangChk) {
                     autoLangChk.checked = data.voice.auto_language_detection;
+                }
+            }
+
+            // Update Voice Audio Output dropdown
+            if (data.voice && data.voice.audio_output_sink) {
+                const audioSelect = document.getElementById("select-audio-output");
+                if (audioSelect && document.activeElement.id !== "select-audio-output") {
+                    audioSelect.value = data.voice.audio_output_sink;
                 }
             }
 
@@ -1587,6 +1604,15 @@
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
                 body: JSON.stringify({auto_language_detection: checked})
+            });
+        }
+
+        // Voice audio output sink setter
+        function setAudioOutput(sink) {
+            fetch("/api/settings", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({audio_output_sink: sink})
             });
         }
 

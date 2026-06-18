@@ -40,6 +40,7 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 "wake_word": daemon.config_manager.config.get("voice", {}).get("wake_word", "jarvis"),
                 "wake_sensitivity": daemon.config_manager.config.get("voice", {}).get("wake_sensitivity", 0.5),
                 "auto_language_detection": daemon.config_manager.config.get("voice", {}).get("auto_language_detection", True),
+                "audio_output_sink": daemon.config_manager.config.get("voice", {}).get("audio_output_sink", "aec_sink"),
                 "listening": daemon.voice_listening_active
             },
             "alarms": daemon.config_manager.config.get("alarms", []),
@@ -96,6 +97,15 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
                 config["voice"] = {}
             config["voice"]["auto_language_detection"] = bool(data["auto_language_detection"])
             daemon.log(f"[Portal] Auto Language Detection set to: {data['auto_language_detection']}")
+        if "audio_output_sink" in data:
+            if "voice" not in config:
+                config["voice"] = {}
+            sink_name = str(data["audio_output_sink"])
+            config["voice"]["audio_output_sink"] = sink_name
+            daemon.log(f"[Portal] Setting default PulseAudio output sink to: {sink_name}")
+            if not sys.platform.startswith("win"):
+                import subprocess
+                subprocess.run(f"pactl set-default-sink {sink_name}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if "wake_word" in data:
             config["voice"]["wake_word"] = str(data["wake_word"]).lower()
             daemon.log(f"[Portal] Wake Word set to: {data['wake_word']}")
