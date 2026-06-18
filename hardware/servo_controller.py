@@ -99,6 +99,7 @@ class ServoController:
         self._detached_channels = set()
         self.last_target_pos = {name: self.current_pos[name] for name in self.names}
         self.velocities = {name: 0.0 for name in self.names}
+        self.snap_eyes = False
 
 
         # Initialize hardware if not mocking
@@ -334,15 +335,15 @@ class ServoController:
         try:
             if name == "startup":
                 # Start with eyes closed and looking down-center
-                self.target_pos["left_upper_eyelid"] = self.get_close_angle("left_upper_eyelid")
-                self.target_pos["right_upper_eyelid"] = self.get_close_angle("right_upper_eyelid")
-                self.target_pos["left_lower_eyelid"] = self.get_close_angle("left_lower_eyelid")
-                self.target_pos["right_lower_eyelid"] = self.get_close_angle("right_lower_eyelid")
-                self.target_pos["yaw"] = 90.0
-                self.target_pos["pitch"] = 115.0 # looking down
-                # Snap current position to target closed state instantly
-                for k in self.names:
-                    self.current_pos[k] = self.target_pos[k]
+                with self.lock:
+                    self.target_pos["left_upper_eyelid"] = self.get_close_angle("left_upper_eyelid")
+                    self.target_pos["right_upper_eyelid"] = self.get_close_angle("right_upper_eyelid")
+                    self.target_pos["left_lower_eyelid"] = self.get_close_angle("left_lower_eyelid")
+                    self.target_pos["right_lower_eyelid"] = self.get_close_angle("right_lower_eyelid")
+                    self.target_pos["yaw"] = 90.0
+                    self.target_pos["pitch"] = 115.0 # looking down
+                    # Request immediate snap of current position to target closed state instantly
+                    self.snap_eyes = True
                 time.sleep(0.6)
                 
                 # 1. Blink open eyes, look left
@@ -814,8 +815,9 @@ class ServoController:
             self.calibration_angle = max(10.0, min(170.0, self.calibration_angle))
             
             # Update targets directly, bypassing smoothing to give immediate feedback
-            self.target_pos[name] = self.calibration_angle
-            self.current_pos[name] = self.calibration_angle
+            with self.lock:
+                self.target_pos[name] = self.calibration_angle
+                self.current_pos[name] = self.calibration_angle
             
             # Slow rate: 10 degrees per second
             time.sleep(0.1)
@@ -1018,6 +1020,14 @@ class ServoController:
         
         while self.is_running:
             self.lock.acquire()
+            
+            # Instantly snap eye positions if requested (bypassing physics smooth-out)
+            if getattr(self, "snap_eyes", False):
+                for k in self.names:
+                    self.current_pos[k] = self.target_pos[k]
+                    self.velocities[k] = 0.0
+                self.snap_eyes = False
+                
             now = time.time()
             dt = now - last_time
             last_time = now

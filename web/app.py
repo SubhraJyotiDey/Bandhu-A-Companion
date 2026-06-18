@@ -63,7 +63,7 @@ def get_uptime():
         return f"{hours}h {minutes}m"
     return f"{minutes}m {seconds}s"
 
-def run_web_portal(daemon, host="0.0.0.0", port=5000):
+def create_app(daemon):
     # Disable flask logging to keep stdout/stderr clean
     import logging
     log = logging.getLogger('werkzeug')
@@ -156,6 +156,34 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
         data = request.json or {}
         config = daemon.config_manager.config
         
+        # Validate inputs first
+        import re
+        try:
+            if "wake_sensitivity" in data:
+                sens_val = float(data["wake_sensitivity"])
+                if not (0.0 <= sens_val <= 1.0):
+                    return jsonify({"success": False, "error": "Wake sensitivity must be between 0.0 and 1.0."})
+            if "extroversion" in data:
+                ext_val = float(data["extroversion"])
+                if not (0.0 <= ext_val <= 1.0):
+                    return jsonify({"success": False, "error": "Extroversion must be between 0.0 and 1.0."})
+            if "sleep_time" in data:
+                t_str = str(data["sleep_time"])
+                if not re.match(r'^\d{2}:\d{2}$', t_str):
+                    return jsonify({"success": False, "error": "Sleep time must be in HH:MM format."})
+                sh, sm = map(int, t_str.split(":"))
+                if not (0 <= sh <= 23 and 0 <= sm <= 59):
+                    return jsonify({"success": False, "error": "Invalid sleep time hours/minutes."})
+            if "wake_time" in data:
+                t_str = str(data["wake_time"])
+                if not re.match(r'^\d{2}:\d{2}$', t_str):
+                    return jsonify({"success": False, "error": "Wake time must be in HH:MM format."})
+                wh, wm = map(int, t_str.split(":"))
+                if not (0 <= wh <= 23 and 0 <= wm <= 59):
+                    return jsonify({"success": False, "error": "Invalid wake time hours/minutes."})
+        except (TypeError, ValueError) as ex:
+            return jsonify({"success": False, "error": f"Invalid settings value: {ex}"})
+        
         # Mock mode
         if "mock" in data:
             config["mock"] = bool(data["mock"])
@@ -173,8 +201,12 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
             
         # Invert X/Y
         if "invert_x" in data:
+            if "face_tracking" not in config:
+                config["face_tracking"] = {}
             config["face_tracking"]["invert_x"] = bool(data["invert_x"])
         if "invert_y" in data:
+            if "face_tracking" not in config:
+                config["face_tracking"] = {}
             config["face_tracking"]["invert_y"] = bool(data["invert_y"])
             
         # Voice Settings
@@ -202,9 +234,13 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
             else:
                 daemon.log(f"[Portal Error] Rejected invalid PulseAudio output sink: {sink_name}")
         if "wake_word" in data:
+            if "voice" not in config:
+                config["voice"] = {}
             config["voice"]["wake_word"] = str(data["wake_word"]).lower()
             daemon.log(f"[Portal] Wake Word set to: {data['wake_word']}")
         if "wake_sensitivity" in data:
+            if "voice" not in config:
+                config["voice"] = {}
             config["voice"]["wake_sensitivity"] = float(data["wake_sensitivity"])
             
         # Extroversion
@@ -284,13 +320,23 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
         angle = data.get("angle")
         override = data.get("override", True)
         
+        if not name or name not in daemon.servos.names:
+            return jsonify({"success": False, "error": f"Invalid or missing servo name. Valid names are: {list(daemon.servos.names)}"})
+            
+        try:
+            clean_angle = float(angle)
+            if not (0.0 <= clean_angle <= 180.0):
+                return jsonify({"success": False, "error": "Angle must be between 0.0 and 180.0."})
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "Angle must be a valid number."})
+            
         daemon.servos.manual_override = bool(override)
-        if name and angle is not None:
-            daemon.servos.set_target(name, float(angle))
-            # Directly snap current pos on manual override for instant calibration visual response
-            daemon.servos.current_pos[name] = float(angle)
-            return jsonify({"success": True})
-        return jsonify({"success": False, "error": "Missing params"})
+        daemon.servos.set_target(name, clean_angle)
+        # Directly snap current pos on manual override for instant calibration visual response
+        with daemon.servos.lock:
+            daemon.servos.current_pos[name] = clean_angle
+            daemon.servos.velocities[name] = 0.0
+        return jsonify({"success": True})
 
     @app.route("/api/servo/calibrate", methods=["POST"])
     def calibrate_servo():
@@ -303,8 +349,8 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
         pin = data.get("pin")
         close_ang = data.get("close_angle")
         
-        if not name:
-            return jsonify({"success": False, "error": "No servo name"})
+        if not name or name not in daemon.servos.names:
+            return jsonify({"success": False, "error": f"Invalid or missing servo name. Valid names are: {list(daemon.servos.names)}"})
             
         config = daemon.config_manager.config
         if "servos" not in config:
@@ -314,16 +360,28 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
             
         srv = config["servos"][name]
         
-        if trim is not None and trim != "":
-            srv["trim"] = float(trim)
-        if min_ang is not None and min_ang != "":
-            srv["min_angle"] = float(min_ang)
-        if max_ang is not None and max_ang != "":
-            srv["max_angle"] = float(max_ang)
-        if pin is not None and pin != "":
-            srv["pin"] = int(pin)
-        if close_ang is not None and close_ang != "":
-            srv["close_angle"] = float(close_ang)
+        try:
+            if trim is not None and trim != "":
+                srv["trim"] = float(trim)
+            if min_ang is not None and min_ang != "":
+                val = float(min_ang)
+                if not (0.0 <= val <= 180.0):
+                    return jsonify({"success": False, "error": "min_angle must be 0.0-180.0"})
+                srv["min_angle"] = val
+            if max_ang is not None and max_ang != "":
+                val = float(max_ang)
+                if not (0.0 <= val <= 180.0):
+                    return jsonify({"success": False, "error": "max_angle must be 0.0-180.0"})
+                srv["max_angle"] = val
+            if pin is not None and pin != "":
+                srv["pin"] = int(pin)
+            if close_ang is not None and close_ang != "":
+                val = float(close_ang)
+                if not (0.0 <= val <= 180.0):
+                    return jsonify({"success": False, "error": "close_angle must be 0.0-180.0"})
+                srv["close_angle"] = val
+        except (TypeError, ValueError) as ex:
+            return jsonify({"success": False, "error": f"Invalid parameter value: {ex}"})
             
         daemon.config_manager.save_config()
         daemon.log(f"[Portal] Saved calibration parameters for: {name}")
@@ -424,6 +482,16 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
         if not alarm_id or not time_str or not task:
             return jsonify({"success": False, "error": "Missing params"})
             
+        import re
+        if not re.match(r'^\d{2}:\d{2}$', time_str):
+            return jsonify({"success": False, "error": "Time must be in HH:MM format."})
+        try:
+            h, m = map(int, time_str.split(":"))
+            if not (0 <= h <= 23 and 0 <= m <= 59):
+                raise ValueError()
+        except ValueError:
+            return jsonify({"success": False, "error": "Invalid time values. Hour must be 0-23, Minute 0-59."})
+            
         config = daemon.config_manager.config
         if "alarms" not in config:
             config["alarms"] = []
@@ -470,8 +538,13 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
         
         if not sink or volume is None:
             return jsonify({"success": False, "error": "Missing sink or volume"})
-        
-        volume = max(0, min(150, int(volume)))  # Clamp 0-150%
+            
+        try:
+            vol_int = int(volume)
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "Volume must be a valid integer."})
+            
+        volume = max(0, min(150, vol_int))  # Clamp 0-150%
         daemon.log(f"[Portal] Setting volume for '{sink}' to {volume}%")
         
         if not sys.platform.startswith("win"):
@@ -992,6 +1065,10 @@ def run_web_portal(daemon, host="0.0.0.0", port=5000):
             })
         return jsonify({"success": False, "error": "CRT engine not initialized"}), 500
 
+    return app
+
+def run_web_portal(daemon, host="0.0.0.0", port=5000):
+    app = create_app(daemon)
     # Run the web server in a separate thread so it doesn't block the caller
     web_thread = threading.Thread(
         target=lambda: app.run(host=host, port=port, debug=False, use_reloader=False),
