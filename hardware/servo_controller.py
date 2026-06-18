@@ -414,10 +414,10 @@ class ServoController:
         try:
             if name == "startup":
                 # Start with eyes closed and looking down-center
-                self.target_pos["left_upper_eyelid"] = 125.0
-                self.target_pos["right_upper_eyelid"] = 125.0
-                self.target_pos["left_lower_eyelid"] = 80.0
-                self.target_pos["right_lower_eyelid"] = 80.0
+                self.target_pos["left_upper_eyelid"] = self.get_close_angle("left_upper_eyelid")
+                self.target_pos["right_upper_eyelid"] = self.get_close_angle("right_upper_eyelid")
+                self.target_pos["left_lower_eyelid"] = self.get_close_angle("left_lower_eyelid")
+                self.target_pos["right_lower_eyelid"] = self.get_close_angle("right_lower_eyelid")
                 self.target_pos["yaw"] = 90.0
                 self.target_pos["pitch"] = 115.0 # looking down
                 # Snap current position to target closed state instantly
@@ -435,10 +435,10 @@ class ServoController:
                 time.sleep(0.6)
                 
                 # 2. Blink
-                self.target_pos["left_upper_eyelid"] = 125.0
-                self.target_pos["right_upper_eyelid"] = 125.0
-                self.target_pos["left_lower_eyelid"] = 80.0
-                self.target_pos["right_lower_eyelid"] = 80.0
+                self.target_pos["left_upper_eyelid"] = self.get_close_angle("left_upper_eyelid")
+                self.target_pos["right_upper_eyelid"] = self.get_close_angle("right_upper_eyelid")
+                self.target_pos["left_lower_eyelid"] = self.get_close_angle("left_lower_eyelid")
+                self.target_pos["right_lower_eyelid"] = self.get_close_angle("right_lower_eyelid")
                 time.sleep(0.12)
                 
                 # 3. Look right (open eyes looking right)
@@ -451,10 +451,10 @@ class ServoController:
                 
                 # 4. Notoriously blink (rapid double blink / flutter)
                 # First rapid close/open
-                self.target_pos["left_upper_eyelid"] = 125.0
-                self.target_pos["right_upper_eyelid"] = 125.0
-                self.target_pos["left_lower_eyelid"] = 80.0
-                self.target_pos["right_lower_eyelid"] = 80.0
+                self.target_pos["left_upper_eyelid"] = self.get_close_angle("left_upper_eyelid")
+                self.target_pos["right_upper_eyelid"] = self.get_close_angle("right_upper_eyelid")
+                self.target_pos["left_lower_eyelid"] = self.get_close_angle("left_lower_eyelid")
+                self.target_pos["right_lower_eyelid"] = self.get_close_angle("right_lower_eyelid")
                 time.sleep(0.08)
                 self.target_pos["left_upper_eyelid"] = 80.0
                 self.target_pos["right_upper_eyelid"] = 80.0
@@ -462,10 +462,10 @@ class ServoController:
                 self.target_pos["right_lower_eyelid"] = 110.0
                 time.sleep(0.1)
                 # Second rapid close (and gaze starts shifting front during this close)
-                self.target_pos["left_upper_eyelid"] = 125.0
-                self.target_pos["right_upper_eyelid"] = 125.0
-                self.target_pos["left_lower_eyelid"] = 80.0
-                self.target_pos["right_lower_eyelid"] = 80.0
+                self.target_pos["left_upper_eyelid"] = self.get_close_angle("left_upper_eyelid")
+                self.target_pos["right_upper_eyelid"] = self.get_close_angle("right_upper_eyelid")
+                self.target_pos["left_lower_eyelid"] = self.get_close_angle("left_lower_eyelid")
+                self.target_pos["right_lower_eyelid"] = self.get_close_angle("right_lower_eyelid")
                 self.target_pos["yaw"] = 90.0
                 self.target_pos["pitch"] = 90.0
                 time.sleep(0.08)
@@ -478,10 +478,10 @@ class ServoController:
                 time.sleep(0.6)
                 
                 # 6. Blink once
-                self.target_pos["left_upper_eyelid"] = 125.0
-                self.target_pos["right_upper_eyelid"] = 125.0
-                self.target_pos["left_lower_eyelid"] = 80.0
-                self.target_pos["right_lower_eyelid"] = 80.0
+                self.target_pos["left_upper_eyelid"] = self.get_close_angle("left_upper_eyelid")
+                self.target_pos["right_upper_eyelid"] = self.get_close_angle("right_upper_eyelid")
+                self.target_pos["left_lower_eyelid"] = self.get_close_angle("left_lower_eyelid")
+                self.target_pos["right_lower_eyelid"] = self.get_close_angle("right_lower_eyelid")
                 time.sleep(0.12)
                 self.target_pos["left_upper_eyelid"] = 60.0
                 self.target_pos["right_upper_eyelid"] = 60.0
@@ -664,8 +664,8 @@ class ServoController:
                 time.sleep(0.1)
                 
                 # Playful wink
-                self.target_pos["left_upper_eyelid"] = 125.0
-                self.target_pos["left_lower_eyelid"] = 80.0
+                self.target_pos["left_upper_eyelid"] = self.get_close_angle("left_upper_eyelid")
+                self.target_pos["left_lower_eyelid"] = self.get_close_angle("left_lower_eyelid")
                 time.sleep(0.18)
                 
                 # Restore
@@ -695,10 +695,10 @@ class ServoController:
                 time.sleep(1.0)
                 
                 # Slow blink/shut down
-                self.target_pos["left_upper_eyelid"] = 125.0
-                self.target_pos["right_upper_eyelid"] = 125.0
-                self.target_pos["left_lower_eyelid"] = 80.0
-                self.target_pos["right_lower_eyelid"] = 80.0
+                self.target_pos["left_upper_eyelid"] = self.get_close_angle("left_upper_eyelid")
+                self.target_pos["right_upper_eyelid"] = self.get_close_angle("right_upper_eyelid")
+                self.target_pos["left_lower_eyelid"] = self.get_close_angle("left_lower_eyelid")
+                self.target_pos["right_lower_eyelid"] = self.get_close_angle("right_lower_eyelid")
                 time.sleep(0.4)
                 
                 # Restore
@@ -729,20 +729,20 @@ class ServoController:
                 time.sleep(0.2)
                 
                 # Rapid double-blink
-                self.target_pos["left_upper_eyelid"] = 125.0
-                self.target_pos["right_upper_eyelid"] = 125.0
-                self.target_pos["left_lower_eyelid"] = 80.0
-                self.target_pos["right_lower_eyelid"] = 80.0
+                self.target_pos["left_upper_eyelid"] = self.get_close_angle("left_upper_eyelid")
+                self.target_pos["right_upper_eyelid"] = self.get_close_angle("right_upper_eyelid")
+                self.target_pos["left_lower_eyelid"] = self.get_close_angle("left_lower_eyelid")
+                self.target_pos["right_lower_eyelid"] = self.get_close_angle("right_lower_eyelid")
                 time.sleep(0.08)
                 self.target_pos["left_upper_eyelid"] = 60.0
                 self.target_pos["right_upper_eyelid"] = 60.0
                 self.target_pos["left_lower_eyelid"] = 120.0
                 self.target_pos["right_lower_eyelid"] = 120.0
                 time.sleep(0.12)
-                self.target_pos["left_upper_eyelid"] = 125.0
-                self.target_pos["right_upper_eyelid"] = 125.0
-                self.target_pos["left_lower_eyelid"] = 80.0
-                self.target_pos["right_lower_eyelid"] = 80.0
+                self.target_pos["left_upper_eyelid"] = self.get_close_angle("left_upper_eyelid")
+                self.target_pos["right_upper_eyelid"] = self.get_close_angle("right_upper_eyelid")
+                self.target_pos["left_lower_eyelid"] = self.get_close_angle("left_lower_eyelid")
+                self.target_pos["right_lower_eyelid"] = self.get_close_angle("right_lower_eyelid")
                 time.sleep(0.08)
                 
                 # Settle
@@ -763,10 +763,10 @@ class ServoController:
                 self.target_pos["pitch"] = 98.0
                 time.sleep(0.45)
                 # Quick double blink
-                self.target_pos["left_upper_eyelid"] = 125.0
-                self.target_pos["right_upper_eyelid"] = 125.0
-                self.target_pos["left_lower_eyelid"] = 80.0
-                self.target_pos["right_lower_eyelid"] = 80.0
+                self.target_pos["left_upper_eyelid"] = self.get_close_angle("left_upper_eyelid")
+                self.target_pos["right_upper_eyelid"] = self.get_close_angle("right_upper_eyelid")
+                self.target_pos["left_lower_eyelid"] = self.get_close_angle("left_lower_eyelid")
+                self.target_pos["right_lower_eyelid"] = self.get_close_angle("right_lower_eyelid")
                 time.sleep(0.1)
                 self.target_pos["left_upper_eyelid"] = 60.0
                 self.target_pos["right_upper_eyelid"] = 60.0
@@ -798,8 +798,8 @@ class ServoController:
                 time.sleep(0.65)
                 
                 # Playful wink
-                self.target_pos["left_upper_eyelid"] = 125.0
-                self.target_pos["left_lower_eyelid"] = 80.0
+                self.target_pos["left_upper_eyelid"] = self.get_close_angle("left_upper_eyelid")
+                self.target_pos["left_lower_eyelid"] = self.get_close_angle("left_lower_eyelid")
                 time.sleep(0.18)
                 
                 # Restore
@@ -825,10 +825,10 @@ class ServoController:
                 time.sleep(0.8)
                 
                 # Blink
-                self.target_pos["left_upper_eyelid"] = 125.0
-                self.target_pos["right_upper_eyelid"] = 125.0
-                self.target_pos["left_lower_eyelid"] = 80.0
-                self.target_pos["right_lower_eyelid"] = 80.0
+                self.target_pos["left_upper_eyelid"] = self.get_close_angle("left_upper_eyelid")
+                self.target_pos["right_upper_eyelid"] = self.get_close_angle("right_upper_eyelid")
+                self.target_pos["left_lower_eyelid"] = self.get_close_angle("left_lower_eyelid")
+                self.target_pos["right_lower_eyelid"] = self.get_close_angle("right_lower_eyelid")
                 time.sleep(0.12)
                 
                 self.target_pos["left_upper_eyelid"] = 48.0
@@ -852,10 +852,10 @@ class ServoController:
 
             elif name == "idle_close_eyes":
                 # Close eyes completely
-                self.target_pos["left_upper_eyelid"] = 125.0
-                self.target_pos["right_upper_eyelid"] = 125.0
-                self.target_pos["left_lower_eyelid"] = 80.0
-                self.target_pos["right_lower_eyelid"] = 80.0
+                self.target_pos["left_upper_eyelid"] = self.get_close_angle("left_upper_eyelid")
+                self.target_pos["right_upper_eyelid"] = self.get_close_angle("right_upper_eyelid")
+                self.target_pos["left_lower_eyelid"] = self.get_close_angle("left_lower_eyelid")
+                self.target_pos["right_lower_eyelid"] = self.get_close_angle("right_lower_eyelid")
                 # Wait closed between 1.2 and 2.5 seconds
                 time.sleep(random.uniform(1.2, 2.5))
                 
@@ -1407,14 +1407,7 @@ class ServoController:
                 effective_target["right_upper_eyelid"] = ru_target
                 effective_target["right_lower_eyelid"] = rl_target
             
-            # Map closed-eye constant targets to calibrated close_angle when not in manual override
-            if not self.manual_override:
-                for name in ["left_upper_eyelid", "right_upper_eyelid"]:
-                    if effective_target.get(name) == 125.0:
-                        effective_target[name] = self.get_close_angle(name)
-                for name in ["left_lower_eyelid", "right_lower_eyelid"]:
-                    if effective_target.get(name) == 80.0:
-                        effective_target[name] = self.get_close_angle(name)
+            # (No mapping override necessary: gestures directly use calibrated close angles)
             
             # ----------------------------------------------------------
             # 3. EXPONENTIAL EASE-OUT INTERPOLATION & WRITES
