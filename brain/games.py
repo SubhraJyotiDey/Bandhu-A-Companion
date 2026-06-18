@@ -96,7 +96,7 @@ class CompanionGames:
             
         elif self.active_game == "word_chain":
             self.last_char = "ত"
-            prompt = "চলুন, শব্দ-শৃঙ্খল খেলা যাক! আমি একটি বাংলা শব্দ বলবো, আপনাকে তার শেষ ব্যঞ্জনবর্ণ দিয়ে একটি নতুন শব্দ বলতে হবে। আমার প্রথম শব্দ হলো: 'কলকাতা'। শেষ অক্ষর 'ত'। এবার আপনার পালা, ত দিয়ে একটি শব্দ বলুন!"
+            prompt = "চলুন, शब्द-শৃঙ্খল খেলা যাক! আমি একটি বাংলা শব্দ বলবো, আপনাকে তার শেষ ব্যঞ্জনবর্ণ দিয়ে একটি নতুন শব্দ বলতে হবে। আমার প্রথম শব্দ হলো: 'কলকাতা'। শেষ অক্ষর 'ত'। এবার আপনার পালা, ত দিয়ে একটি শব্দ বলুন!"
             self.servos.play_gesture("scanning")
             self.tts.speak(prompt, lang)
             return prompt
@@ -181,9 +181,21 @@ class CompanionGames:
                 return prompt
                 
         elif self.active_game == "word_chain":
-            # Extract first char of user's word
-            first_char = self.get_first_bengali_char(user_speech)
             last_char_expected = self.last_char
+            words = speech_lower.split()
+            
+            # Find a word starting with last_char_expected
+            chosen_word = None
+            for w in words:
+                if self.get_first_bengali_char(w) == last_char_expected:
+                    chosen_word = w
+                    break
+                    
+            if not chosen_word:
+                # Fallback to the first word if none matched the expected character
+                chosen_word = words[0] if words else user_speech
+                
+            first_char = self.get_first_bengali_char(chosen_word)
             
             # Validate if it matches the expected starting character
             if first_char != last_char_expected:
@@ -193,7 +205,7 @@ class CompanionGames:
                 return prompt
                 
             # User gave a valid word! Let's find its last consonant
-            user_last = self.get_last_bengali_consonant(user_speech)
+            user_last = self.get_last_bengali_consonant(chosen_word)
             if not user_last:
                 prompt = "দয়া করে একটু স্পষ্ট করে বলুন।"
                 self.tts.speak(prompt, lang)
@@ -205,7 +217,7 @@ class CompanionGames:
                 robot_word, robot_next = lookup
                 self.last_char = robot_next
                 self.score += 5
-                prompt = f"চমৎকার! আপনি বললেন '{user_speech}'। আমার শব্দ হলো '{robot_word}'। শেষ অক্ষর '{robot_next}'। এবার '{robot_next}' দিয়ে বলুন!"
+                prompt = f"চমৎকার! আপনি বললেন '{chosen_word}'। আমার শব্দ হলো '{robot_word}'। শেষ অক্ষর '{robot_next}'। এবার '{robot_next}' দিয়ে বলুন!"
                 self.servos.play_gesture("nod")
                 self.tts.speak(prompt, lang)
                 return prompt
@@ -221,20 +233,44 @@ class CompanionGames:
                 
         elif self.active_game == "guess_number":
             self.guess_count += 1
-            # Extract integer from user's speech
-            nums = re.findall(r'\d+', speech_lower)
-            # Check Bengali digits as well
-            bn_digits = {'১':'1', '২':'2', '৩':'3', '৪':'4', '৫':'5', '৬':'6', '৭':'7', '৮':'8', '৯':'9', '০':'0'}
-            bengali_nums = ""
-            for char in speech_lower:
-                if char in bn_digits:
-                    bengali_nums += bn_digits[char]
             
+            # Map spoken Bengali word numbers to integers
+            bengali_word_to_num = {
+                "এক": 1, "দুই": 2, "তিন": 3, "চার": 4, "পাঁচ": 5, "পাচ": 5,
+                "ছয়": 6, "ছয়": 6, "সাত": 7, "আট": 8, "নয়": 9, "নয়": 9, "দশ": 10,
+                "এগারো": 11, "বারো": 12, "তেরো": 13, "চৌদ্দ": 14, "পনেরো": 15,
+                "ষোল": 16, "ষোলো": 16, "সতেরো": 17, "আঠারো": 18, "উনিশ": 19, "বিশ": 20, "কুড়ি": 20, "কুড়ি": 20
+            }
+            
+            word_val = None
+            for word, num in bengali_word_to_num.items():
+                if word in speech_lower:
+                    word_val = num
+                    break
+                    
             val = None
-            if nums:
-                val = int(nums[0])
-            elif bengali_nums:
-                val = int(bengali_nums)
+            if word_val is not None:
+                val = word_val
+            else:
+                # Extract integer from user's speech
+                nums = re.findall(r'\d+', speech_lower)
+                # Check Bengali digits as well
+                bn_digits = {'১':'1', '২':'2', '৩':'3', '৪':'4', '৫':'5', '৬':'6', '৭':'7', '৮':'8', '৯':'9', '০':'0'}
+                bengali_nums = ""
+                for char in speech_lower:
+                    if char in bn_digits:
+                        bengali_nums += bn_digits[char]
+                
+                if nums:
+                    try:
+                        val = int(nums[0])
+                    except Exception:
+                        pass
+                elif bengali_nums:
+                    try:
+                        val = int(bengali_nums)
+                    except Exception:
+                        pass
                 
             if val is None:
                 prompt = "অনুগ্রহ করে ১ থেকে ২০ এর মধ্যে একটি সংখ্যা বলুন।"
@@ -249,8 +285,8 @@ class CompanionGames:
                 # Automatically reset with a new number
                 self.secret_number = random.randint(1, 20)
                 self.guess_count = 0
-                prompt += " চলুন, আরেকবার খেলা যাক! আমি মনে মনে ১ থেকে ২০ এর মধ্যে আরেকটি নতুন সংখ্যা ভেবেছি। বলো তো সংখ্যাটি কত হতে পারে?"
-                self.tts.speak("চলুন, আরেকবার খেলা যাক! আমি মনে মনে ১ থেকে ২০ এর মধ্যে আরেকটি নতুন সংখ্যা ভেবেছি। বলো तो সংখ্যাটি কত হতে পারে?", lang)
+                prompt += " চলুন, আরেকটি খেলা যাক! আমি মনে মনে ১ থেকে ২০ এর মধ্যে আরেকটি নতুন সংখ্যা ভেবেছি। বলো তো সংখ্যাটি কত হতে পারে?"
+                self.tts.speak("চলুন, আরেকটি খেলা যাক! আমি মনে মনে ১ থেকে ২০ এর মধ্যে আরেকটি নতুন সংখ্যা ভেবেছি। বলো তো সংখ্যাটি কত হতে পারে?", lang)
                 return prompt
             elif val < self.secret_number:
                 prompt = "সংখ্যাটি এর চেয়ে বড়! আবার বলো।"

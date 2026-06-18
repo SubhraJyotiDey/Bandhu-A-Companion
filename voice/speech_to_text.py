@@ -99,6 +99,22 @@ class STTManager:
             self.recognizer = None
             self.microphone = None
 
+    def _is_audio_too_noisy(self, audio_data):
+        try:
+            raw_data = audio_data.get_raw_data()
+            import struct
+            count = len(raw_data) // 2
+            if count > 0:
+                shorts = struct.unpack(f"{count}h", raw_data)
+                sum_squares = sum(s * s for s in shorts)
+                rms = (sum_squares / count) ** 0.5
+                print(f"[STT Noise Monitor] Checked audio RMS: {rms:.1f}")
+                if rms > 3500.0:
+                    return True
+        except Exception:
+            pass
+        return False
+
     def listen_and_transcribe(self, timeout=8, phrase_time_limit=12, lang=None):
         """Listens to the microphone and transcribes to text. Prefers offline Vosk if available."""
         if lang is None:
@@ -168,6 +184,9 @@ class STTManager:
                 valid_results = [r for r in results if r[1].strip()]
                 if not valid_results:
                     print("[STT Cloud] Speech recognition could not understand the audio in any language.")
+                    if self._is_audio_too_noisy(audio_data):
+                        print("[STT Noise Monitor] High-noise crowd threshold exceeded. Returning __TOO_NOISY__.")
+                        return "__TOO_NOISY__"
                     # Try to fall back to Vosk if available
                     if self.vosk_available:
                         print("[STT Warning] Falling back to offline Vosk...")
@@ -205,20 +224,9 @@ class STTManager:
         except Exception as e:
             import speech_recognition as sr
             if isinstance(e, sr.UnknownValueError) and 'audio_data' in locals():
-                try:
-                    raw_data = audio_data.get_raw_data()
-                    import struct
-                    count = len(raw_data) // 2
-                    if count > 0:
-                        shorts = struct.unpack(f"{count}h", raw_data)
-                        sum_squares = sum(s * s for s in shorts)
-                        rms = (sum_squares / count) ** 0.5
-                        print(f"[STT Noise Monitor] Speech was not understood. Audio RMS: {rms:.1f}")
-                        if rms > 3500.0:
-                            print(f"[STT Noise Monitor] High-noise crowd threshold exceeded. Returning __TOO_NOISY__.")
-                            return "__TOO_NOISY__"
-                except Exception:
-                    pass
+                if self._is_audio_too_noisy(audio_data):
+                    print("[STT Noise Monitor] High-noise crowd threshold exceeded. Returning __TOO_NOISY__.")
+                    return "__TOO_NOISY__"
                     
             print(f"[STT Cloud Error] Speech recognition failed: {e}")
             if self.vosk_available:
