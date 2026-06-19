@@ -116,7 +116,7 @@
     "extroversion": 0.7,
     "mood": "happy",
     "idle_behaviors": false,
-    "gaze_movement_mode": "spring_damper"
+    "gaze_movement_mode": "parabolic"
   },
   "sleep_mode": {
     "enabled": true,
