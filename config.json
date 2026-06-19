@@ -115,7 +115,8 @@
   "personality": {
     "extroversion": 0.7,
     "mood": "happy",
-    "idle_behaviors": false
+    "idle_behaviors": false,
+    "gaze_movement_mode": "spring_damper"
   },
   "sleep_mode": {
     "enabled": true,

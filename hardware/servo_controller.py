@@ -4,6 +4,65 @@ import threading
 import sys
 import random
 
+class PIDController:
+    """A standard Proportional-Integral-Derivative controller for smooth, non-jerky servo tracking."""
+    def __init__(self, kp, ki, kd, max_velocity=150.0):
+        self.kp = kp
+        self.ki = ki
+        self.kd = kd
+        self.max_velocity = max_velocity
+        self.integral = 0.0
+        self.prev_error = 0.0
+
+    def reset(self):
+        self.integral = 0.0
+        self.prev_error = 0.0
+
+    def update(self, current, target, dt):
+        error = target - current
+        self.integral += error * dt
+        # Anti-windup clamping to prevent integration windup and resulting overshoot
+        self.integral = max(-15.0, min(15.0, self.integral))
+        
+        derivative = (error - self.prev_error) / dt if dt > 0.0 else 0.0
+        self.prev_error = error
+        
+        # Calculate speed/velocity control command
+        output_vel = (self.kp * error) + (self.ki * self.integral) + (self.kd * derivative)
+        
+        # Clamp velocity to safety limits
+        output_vel = max(-self.max_velocity, min(self.max_velocity, output_vel))
+        
+        # Integrate velocity to calculate the new position
+        new_pos = current + output_vel * dt
+        return new_pos
+
+class SCurveInterpolator:
+    """Tracks a dynamic target using a smooth cubic S-curve (parabolic blend/ease-in-ease-out)."""
+    def __init__(self, duration=1.2):
+        self.duration = duration
+        self.start_pos = None
+        self.target_pos = None
+        self.elapsed = 0.0
+
+    def update(self, current, target, dt):
+        # If target shifts significantly, restart the ease-in-ease-out transition from current position
+        if self.target_pos is None or abs(target - self.target_pos) > 0.5:
+            self.start_pos = current
+            self.target_pos = target
+            self.elapsed = 0.0
+            
+        if self.start_pos is None:
+            self.start_pos = current
+            
+        self.elapsed += dt
+        t = min(1.0, self.elapsed / self.duration)
+        
+        # Cubic smooth step: y = 3t^2 - 2t^3
+        smooth_t = 3 * (t ** 2) - 2 * (t ** 3)
+        new_pos = self.start_pos + (self.target_pos - self.start_pos) * smooth_t
+        return new_pos
+
 class ServoController:
     def __init__(self, config_manager):
         self.config_manager = config_manager
@@ -100,6 +159,17 @@ class ServoController:
         self.last_target_pos = {name: self.current_pos[name] for name in self.names}
         self.velocities = {name: 0.0 for name in self.names}
         self.snap_eyes = False
+        
+        # Read preferred gaze movement mode ("spring_damper", "pid", or "parabolic")
+        self.gaze_movement_mode = self.config.get("personality", {}).get("gaze_movement_mode", "spring_damper")
+        
+        # Initialize PID controllers and S-curve interpolators for each servo
+        self.pid_controllers = {}
+        self.scurve_interpolators = {}
+        for name in self.names:
+            # Tuned for slow, smooth, non-rapid, highly-damped tracking
+            self.pid_controllers[name] = PIDController(kp=2.5, ki=0.01, kd=0.12)
+            self.scurve_interpolators[name] = SCurveInterpolator(duration=1.2)
 
 
         # Initialize hardware if not mocking
@@ -960,6 +1030,56 @@ class ServoController:
         except Exception:
             pass
 
+    def _get_interpolation_params(self, name, forces_sudden=False):
+        """Returns the natural frequency (w) and damping ratio (zeta) for a given servo
+        based on active gestures, active blinks/flutters, and mood states.
+        """
+        is_eyelid = name in ["left_upper_eyelid", "left_lower_eyelid", "right_upper_eyelid", "right_lower_eyelid"]
+        
+        # Check if we should use rapid/alert movements for sudden reactions / emotions / gestures
+        is_sudden = (
+            forces_sudden or
+            self.gesture_active or 
+            self.blink_active or 
+            self._flutter_active or 
+            self.mood in ["excited", "surprised", "angry", "happy"]
+        )
+        
+        if is_sudden:
+            # Fast, alert, snappy, and responsive tracking (with slight bounce for eyeballs)
+            if is_eyelid:
+                if self.mood in ["sad", "bored"]:
+                    w = 3.5
+                    zeta = 1.1   # slightly overdamped, heavy lids
+                elif self.mood in ["excited", "surprised"]:
+                    w = 8.0
+                    zeta = 0.85  # slightly underdamped, springy/alert
+                else:
+                    w = 6.0
+                    zeta = 1.0   # critically damped
+            else:
+                # Eyeballs (yaw/pitch)
+                if self.mood in ["sad", "bored"]:
+                    w = 4.5
+                    zeta = 1.05  # slightly overdamped, sluggish
+                elif self.mood in ["excited", "surprised"]:
+                    w = 12.0
+                    zeta = 0.80  # springy/alert overshoot
+                else:
+                    w = 9.5
+                    zeta = 0.88  # slightly underdamped, premium organic bounce!
+        else:
+            # Normal idle movement (drift gaze, face tracking, neutral/bored/sad mood idle)
+            # Highly damped, slow, parabolic-like delay for quiet and smooth operation
+            if is_eyelid:
+                w = 2.0
+                zeta = 1.25  # overdamped, slow secondary motion
+            else:
+                w = 2.5      # slow natural look-around
+                zeta = 1.20  # overdamped, zero bounce, smooth ease-in/ease-out
+                
+        return w, zeta
+
     def _solve_spring_damper(self, x, v, t, dt, w, zeta=1.0):
         """Analytically solves a second-order spring-damper system for a time step dt.
         Highly stable and smooth. Returns (new_position, new_velocity).
@@ -1437,58 +1557,47 @@ class ServoController:
                 
                 is_eyelid = name in ["left_upper_eyelid", "left_lower_eyelid", "right_upper_eyelid", "right_lower_eyelid"]
                 
+                # Read latest personality/gaze config updates if any
+                self.gaze_movement_mode = self.config.get("personality", {}).get("gaze_movement_mode", "spring_damper")
+                
                 # If a blink, wink, or flutter is active, eyelids bypass spring-damper for exact curve reproduction
                 if (self.blink_active or self._flutter_active) and is_eyelid:
                     new_pos = target
                     self.velocities[name] = 0.0
-                elif name == "pitch":
-                    # Bypass spring-damper for pitch; use standard exponential ease-out (no spring/damper bounce)
-                    k = self.speed_k.get(name, 1.4)
-                    if self.mood == "sad" or self.mood == "bored":
-                        k *= 0.6
-                    elif self.mood == "excited" or self.mood == "surprised":
-                        k *= 1.4
-                    
-                    factor = 1.0 - math.exp(-k * dt)
-                    step = (target - current) * factor
-                    
-                    max_step = speed_limit * dt
-                    if self.mood == "sad" or self.mood == "bored":
-                        max_step *= 0.6
-                    elif self.mood == "excited" or self.mood == "surprised":
-                        max_step *= 1.3
-                        
-                    step_clamped = max(-max_step, min(max_step, step))
-                    new_pos = current + step_clamped
-                    self.velocities[name] = 0.0
-                else:
-                    # Determine omega (stiffness) and zeta (damping) based on channel and mood
-                    if is_eyelid:
-                        # Eyelids are slower and lag behind eyeballs (secondary motion)
-                        if self.mood == "sad" or self.mood == "bored":
-                            w = 3.5
-                            zeta = 1.1 # slightly overdamped, heavy lids
-                        elif self.mood == "excited" or self.mood == "surprised":
-                            w = 8.0
-                            zeta = 0.85 # slightly underdamped, springy/alert
-                        else:
-                            w = 6.0
-                            zeta = 1.0 # critically damped
-                    else:
-                        # Eyeballs (yaw/pitch) are faster and snappier
-                        if self.mood == "sad" or self.mood == "bored":
-                            w = 4.5
-                            zeta = 1.05 # slightly overdamped, heavy/sluggish
-                        elif self.mood == "excited" or self.mood == "surprised":
-                            w = 12.0
-                            zeta = 0.80 # springy overshoot, very alert
-                        else:
-                            w = 9.5
-                            zeta = 0.88 # slightly underdamped, premium organic bounce!
-                            
-                    # Solve spring damper
+                elif self.gesture_active:
+                    # During active gestures, always run spring-damper with snappy settings for precise expressive reproduction
+                    w, zeta = self._get_interpolation_params(name, forces_sudden=True)
                     new_pos, new_vel = self._solve_spring_damper(current, self.velocities[name], target, dt, w, zeta)
                     self.velocities[name] = new_vel
+                else:
+                    is_sudden = (
+                        self.mood in ["excited", "surprised", "angry", "happy"]
+                    )
+                    
+                    if is_sudden:
+                        # Force snappy spring-damper for sudden emotions
+                        w, zeta = self._get_interpolation_params(name, forces_sudden=True)
+                        new_pos, new_vel = self._solve_spring_damper(current, self.velocities[name], target, dt, w, zeta)
+                        self.velocities[name] = new_vel
+                    else:
+                        # Apply selected mode for normal/idle movements
+                        mode = self.gaze_movement_mode
+                        if mode == "pid":
+                            pid = self.pid_controllers[name]
+                            # PID limits matching safety speed limit
+                            pid.max_velocity = speed_limit
+                            new_pos = pid.update(current, target, dt)
+                            self.velocities[name] = 0.0
+                        elif mode == "parabolic":
+                            scurve = self.scurve_interpolators[name]
+                            # Use S-curve duration
+                            scurve.duration = 1.2
+                            new_pos = scurve.update(current, target, dt)
+                            self.velocities[name] = 0.0
+                        else:  # "spring_damper" (default)
+                            w, zeta = self._get_interpolation_params(name, forces_sudden=False)
+                            new_pos, new_vel = self._solve_spring_damper(current, self.velocities[name], target, dt, w, zeta)
+                            self.velocities[name] = new_vel
                 
                 # Clamp to absolute servo limits (safety calibration limits are applied to final output in _write_servo_angle)
                 new_pos = max(0.0, min(180.0, new_pos))

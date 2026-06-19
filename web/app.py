@@ -181,6 +181,10 @@ def create_app(daemon):
                 wh, wm = map(int, t_str.split(":"))
                 if not (0 <= wh <= 23 and 0 <= wm <= 59):
                     return jsonify({"success": False, "error": "Invalid wake time hours/minutes."})
+            if "gaze_movement_mode" in data:
+                mode_val = str(data["gaze_movement_mode"])
+                if mode_val not in ["spring_damper", "pid", "parabolic"]:
+                    return jsonify({"success": False, "error": "gaze_movement_mode must be one of 'spring_damper', 'pid', or 'parabolic'."})
         except (TypeError, ValueError) as ex:
             return jsonify({"success": False, "error": f"Invalid settings value: {ex}"})
         
@@ -258,6 +262,14 @@ def create_app(daemon):
             config["personality"]["idle_behaviors"] = bool(data["idle_behaviors"])
             daemon.log(f"[Portal] Idle Look-Around Behaviors set to: {config['personality']['idle_behaviors']}")
             
+        # Gaze movement mode
+        if "gaze_movement_mode" in data:
+            if "personality" not in config:
+                config["personality"] = {}
+            config["personality"]["gaze_movement_mode"] = str(data["gaze_movement_mode"])
+            daemon.servos.gaze_movement_mode = str(data["gaze_movement_mode"])
+            daemon.log(f"[Portal] Gaze Movement Mode set to: {data['gaze_movement_mode']}")
+
         # Sound reactions
         if "sound_reactions" in data:
             if "voice" not in config:
