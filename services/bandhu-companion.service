@@ -1,10 +1,8 @@
 [Unit]
-Description=Bandhu Companion Daemon (Servo Eye + Voice + Web Portal)
+Description=Bandhu Elder Care Companion Daemon (Servos + Voice AI + Medicine Scheduler + Web UI)
 Documentation=https://github.com/SubhraJyotiDey/Bandhu-A-Companion
-After=network-online.target sound.target
+After=network-online.target sound.target bluetooth.target
 Wants=network-online.target
-# Start after ZeroClaw if it's installed (soft dependency — won't fail if missing)
-After=bandhu-zeroclaw.service
 
 [Service]
 Type=simple
@@ -12,21 +10,20 @@ User=pi
 Group=pi
 WorkingDirectory=/home/pi/joyful-meitner
 
-# Use the project's virtual environment Python
-ExecStart=/home/pi/joyful-meitner/venv/bin/python main.py run
+# Run via startup wrapper to load PATH, audio sockets, and python environment
+ExecStart=/bin/bash /home/pi/joyful-meitner/scripts/start_companion.sh
 
-# Environment: ensure PulseAudio is accessible for TTS/audio playback
 Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=HOME=/home/pi
 
-# Restart policy: auto-restart on crash with a 5-second cooldown
-Restart=on-failure
+# Restart policy: automatically recover on crash
+Restart=always
 RestartSec=5
 StartLimitIntervalSec=60
 StartLimitBurst=5
 
-# Logging: all stdout/stderr goes to journald
+# Logging: accessible via journalctl -u bandhu-companion.service -f
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=bandhu-companion
