@@ -653,24 +653,25 @@ class CompanionDaemon:
                     # Verify if reconnection succeeded
                     res_verify = subprocess.run(cmd_info, shell=True, capture_output=True, text=True, timeout=5.0)
                     if "Connected: yes" in res_verify.stdout:
-                        self.log(f"[Bluetooth] Automatically reconnected to speaker {self.bt_mac}!")
+                        self.log(f"[Bluetooth] Automatically reconnected to Bluetooth earphones {self.bt_mac}!")
                         
-                        # Trigger PulseAudio echo cancellation reload
-                        self.log("[Bluetooth] Re-initializing PulseAudio Echo Cancellation modules...")
-                        subprocess.run("pulseaudio -k", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        time.sleep(2.0)
+                        card_id = f"bluez_card.{self.bt_mac.replace(':', '_')}"
+                        # Switch to headset/handsfree profile to enable both mic and speaker
+                        subprocess.run(f"pactl set-card-profile {card_id} headset-head-unit", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        subprocess.run(f"pactl set-card-profile {card_id} handsfree_head_unit", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                         
-                        # Re-load module manually if it didn't boot automatically
-                        usb_mic = "alsa_input.usb-GeneralPlus_USB_Audio_Device-00.mono-fallback"
-                        bt_sink = f"bluez_sink.{self.bt_mac.replace(':', '_')}.a2dp_sink"
-                        cmd_load = (
-                            f"pactl load-module module-echo-cancel source_name=aec_source sink_name=aec_sink "
-                            f"aec_method=webrtc channels=1 sink_master={bt_sink} source_master={usb_mic}"
-                        )
-                        subprocess.run(cmd_load, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        subprocess.run("pactl set-default-sink aec_sink", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        subprocess.run("pactl set-default-source aec_source", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        self.log("[Bluetooth] PulseAudio Echo Cancellation modules successfully re-loaded.")
+                        # Automatically bind default PulseAudio sink (speaker) and source (microphone)
+                        find_sink = subprocess.run(f"pactl list short sinks | grep '{self.bt_mac.replace(':', '_')}' | awk '{{print $2}}' | head -n 1", shell=True, capture_output=True, text=True)
+                        sink_name = find_sink.stdout.strip()
+                        if sink_name:
+                            subprocess.run(f"pactl set-default-sink {sink_name}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            self.log(f"[Bluetooth] Audio output set to: {sink_name}")
+                            
+                        find_source = subprocess.run(f"pactl list short sources | grep '{self.bt_mac.replace(':', '_')}' | awk '{{print $2}}' | head -n 1", shell=True, capture_output=True, text=True)
+                        source_name = find_source.stdout.strip()
+                        if source_name:
+                            subprocess.run(f"pactl set-default-source {source_name}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            self.log(f"[Bluetooth] Microphone input set to: {source_name}")
                         
                         is_connected = True
                 

@@ -2,6 +2,21 @@ import os
 import time
 import threading
 import sys
+import ctypes
+
+def suppress_alsa_errors():
+    """Silences low-level ALSA and JACK C library stderr warnings."""
+    try:
+        ERROR_HANDLER_FUNC = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p)
+        def py_error_handler(filename, line, function, err, fmt):
+            pass
+        c_error_handler = ERROR_HANDLER_FUNC(py_error_handler)
+        asound = ctypes.cdll.LoadLibrary('libasound.so.2')
+        asound.snd_lib_error_set_handler(c_error_handler)
+    except Exception:
+        pass
+
+suppress_alsa_errors()
 
 class WakeWordDetector:
     def __init__(self, config_manager, stt_manager, wake_callback, noise_callback=None):
