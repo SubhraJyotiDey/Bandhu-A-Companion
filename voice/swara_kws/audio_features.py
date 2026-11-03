@@ -14,7 +14,6 @@ import numpy as np
 import soundfile as sf
 import librosa
 from scipy import signal
-import torch
 
 SAMPLE_RATE = 16000
 AUDIO_DURATION = 1.0  # seconds
@@ -66,6 +65,11 @@ def extract_features(audio_buffer, sr=SAMPLE_RATE, feature_type="log_mel"):
     Extracts 2D acoustic feature grid from 1D audio buffer.
     Returns: (40, 49) float32 matrix.
     """
+    if not isinstance(audio_buffer, np.ndarray):
+        audio_buffer = np.array(audio_buffer, dtype=np.float32)
+    elif audio_buffer.dtype != np.float32:
+        audio_buffer = audio_buffer.astype(np.float32)
+
     expected_len = int(sr * AUDIO_DURATION)
     if len(audio_buffer) < expected_len:
         audio_buffer = np.pad(audio_buffer, (0, expected_len - len(audio_buffer)), mode="constant")
@@ -118,4 +122,8 @@ def extract_features(audio_buffer, sr=SAMPLE_RATE, feature_type="log_mel"):
 
 def audio_to_tensor(audio_buffer, sr=SAMPLE_RATE, feature_type="log_mel"):
     feat = extract_features(audio_buffer, sr=sr, feature_type=feature_type)
-    return torch.from_numpy(feat).unsqueeze(0).unsqueeze(0)
+    try:
+        import torch
+        return torch.from_numpy(feat).unsqueeze(0).unsqueeze(0)
+    except ImportError:
+        return np.expand_dims(np.expand_dims(feat, 0), 0)
