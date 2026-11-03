@@ -13,12 +13,11 @@ Extracts a 64-dimensional speaker voiceprint capturing vocal tract anatomy:
 import os
 import json
 import numpy as np
-import librosa
-from scipy import signal
+
 try:
-    import soundfile as sf
+    import librosa
 except ImportError:
-    sf = None
+    librosa = None
 
 try:
     from voice.swara_kws.audio_features import SAMPLE_RATE, NUM_SAMPLES, load_audio
@@ -51,6 +50,14 @@ class SpeakerBiometrics:
         elif len(audio_buffer) > expected_len:
             audio_buffer = audio_buffer[-expected_len:]
 
+        if librosa is None:
+            # Pure NumPy lightweight 64-dim spectral timbre fallback
+            spec = np.abs(np.fft.rfft(audio_buffer, n=512))[: self.embed_dim]
+            norm = np.linalg.norm(spec)
+            if norm > 1e-7:
+                spec = spec / norm
+            return spec.astype(np.float32)
+
         # 1. 24 MFCCs (excluding C0 energy to isolate vocal tract shape from loudness)
         mfcc = librosa.feature.mfcc(y=audio_buffer, sr=SAMPLE_RATE, n_mfcc=25)[1:]
         mfcc_mean = np.mean(mfcc, axis=1)  # 24 dims
@@ -80,14 +87,12 @@ class SpeakerBiometrics:
                 if h_idx < len(corr):
                     f0_feats[h] = corr[h_idx] / (corr[0] + 1e-6)
 
-        # Total: 24 + 24 + 7 + 3 + 6 = 64 dimensions!
         descriptor = np.concatenate([mfcc_mean, mfcc_std, contrast, shape_feats, f0_feats]).astype(np.float32)
         if len(descriptor) > self.embed_dim:
             descriptor = descriptor[: self.embed_dim]
         elif len(descriptor) < self.embed_dim:
             descriptor = np.pad(descriptor, (0, self.embed_dim - len(descriptor)))
 
-        # Normalize to unit hypersphere
         norm = np.linalg.norm(descriptor)
         if norm > 1e-7:
             descriptor /= norm
@@ -95,9 +100,6 @@ class SpeakerBiometrics:
         return descriptor
 
     def enroll_owner(self, audio_samples):
-        """
-        Enrolls the owner's biometric voiceprint from K sample audio recordings.
-        """
         voiceprints = []
         for sample in audio_samples:
             vp = self.extract_voiceprint(sample)
@@ -122,12 +124,8 @@ class SpeakerBiometrics:
         return self.owner_voiceprint, consistency
 
     def verify_speaker(self, audio_buffer, threshold=0.92):
-        """
-        Compares live audio against the enrolled owner's voiceprint.
-        Returns: (is_owner, similarity_score)
-        """
         if self.owner_voiceprint is None:
-            return True, 1.0  # If no biometric lock enrolled, pass through
+            return True, 1.0
 
         live_vp = self.extract_voiceprint(audio_buffer)
         similarity = float(np.dot(live_vp, self.owner_voiceprint))

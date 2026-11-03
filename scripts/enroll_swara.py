@@ -51,15 +51,6 @@ except Exception:
 
 def record_sample(sample_idx, total_k, keyword, duration=1.5):
     """Interactively records a single keyword utterance from the microphone."""
-    import pyaudio
-
-    CHUNK = 1024
-    FORMAT = pyaudio.paInt16
-    CHANNELS = 1
-    RATE = SAMPLE_RATE
-
-    p = pyaudio.PyAudio()
-
     print(f"\n---------------------------------------------------------")
     print(f"[Sample {sample_idx}/{total_k}] Prepare to say: \"{keyword.upper()}\"")
     print("Countdown: 3...", end="", flush=True)
@@ -70,22 +61,45 @@ def record_sample(sample_idx, total_k, keyword, duration=1.5):
     time.sleep(0.7)
     print(f" >>> SPEAK NOW: \"{keyword.upper()}\"! <<<", flush=True)
 
-    stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
+    audio_float = None
 
-    frames = []
-    num_chunks = int(RATE / CHUNK * duration)
-    for _ in range(num_chunks):
-        data = stream.read(CHUNK, exception_on_overflow=False)
-        frames.append(data)
+    # Try sounddevice first
+    try:
+        import sounddevice as sd
+        num_frames = int(SAMPLE_RATE * duration)
+        rec = sd.rec(num_frames, samplerate=SAMPLE_RATE, channels=1, dtype="float32")
+        sd.wait()
+        audio_float = rec.flatten()
+    except Exception:
+        audio_float = None
+
+    # Fallback to pyaudio
+    if audio_float is None:
+        try:
+            import pyaudio
+            CHUNK = 1024
+            FORMAT = pyaudio.paInt16
+            CHANNELS = 1
+            RATE = SAMPLE_RATE
+
+            p = pyaudio.PyAudio()
+            stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
+            frames = []
+            num_chunks = int(RATE / CHUNK * duration)
+            for _ in range(num_chunks):
+                data = stream.read(CHUNK, exception_on_overflow=False)
+                frames.append(data)
+
+            stream.stop_stream()
+            stream.close()
+            p.terminate()
+
+            audio_int16 = np.frombuffer(b"".join(frames), dtype=np.int16)
+            audio_float = audio_int16.astype(np.float32) / 32768.0
+        except Exception as e:
+            raise RuntimeError(f"Microphone recording failed: {e}. Check your microphone connection.")
 
     print("✓ Recording captured!", flush=True)
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
-
-    # Convert raw bytes to float32 in [-1.0, 1.0]
-    audio_int16 = np.frombuffer(b"".join(frames), dtype=np.int16)
-    audio_float = audio_int16.astype(np.float32) / 32768.0
 
     # Calculate RMS to ensure speech was captured
     rms = float(np.sqrt(np.mean(audio_float ** 2)))
