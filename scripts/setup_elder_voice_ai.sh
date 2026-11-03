@@ -68,15 +68,39 @@ else
 fi
 
 # 5. Build llama.cpp for ARM Cortex-A53 (Pi Zero 2W)
-echo "[5/5] Building llama.cpp optimized for ARM Cortex-A53..."
+echo "[5/5] Building llama.cpp optimized for ARM Cortex-A53 (512MB RAM safe)..."
+
+# Ensure at least 2GB swap to prevent compiler OOM killer
+SWAP_TOTAL=$(free -m | awk '/Swap:/ {print $2}')
+if [ "$SWAP_TOTAL" -lt 1500 ]; then
+    echo "Increasing swapfile to 2048 MB for compilation..."
+    if [ -f /etc/dphys-swapfile ]; then
+        sudo dphys-swapfile swapoff || true
+        sudo sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile || true
+        sudo dphys-swapfile setup || true
+        sudo dphys-swapfile swapon || true
+    fi
+fi
+
 if [ ! -d "$PROJECT_ROOT/llama.cpp" ]; then
     git clone --depth 1 https://github.com/ggerganov/llama.cpp.git "$PROJECT_ROOT/llama.cpp"
 fi
 
 cd "$PROJECT_ROOT/llama.cpp"
-# Compile llama-cli using 2 parallel jobs to prevent OOM during compilation on 512MB RAM
-cmake -B build -DGGML_NATIVE=OFF -DGGML_CPU_ARM_ARCH=armv8-a
-cmake --build build --config Release -t llama-cli -j2
+# Clean previous failed build
+rm -rf build
+
+# Configure strictly minimal CLI (disabling curl, web UI, server, and tests)
+cmake -B build \
+    -DGGML_NATIVE=OFF \
+    -DGGML_CPU_ARM_ARCH=armv8-a \
+    -DLLAMA_CURL=OFF \
+    -DLLAMA_BUILD_SERVER=OFF \
+    -DLLAMA_BUILD_TESTS=OFF \
+    -DLLAMA_BUILD_EXAMPLES=OFF
+
+# Compile using single thread (-j1) to strictly avoid compiler memory exhaustion
+cmake --build build --config Release -t llama-cli -j1
 
 cd "$PROJECT_ROOT"
 
