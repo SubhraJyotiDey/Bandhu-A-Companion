@@ -3,6 +3,7 @@ import sys
 import time
 import threading
 import json
+from datetime import datetime
 from flask import Flask, render_template, jsonify, request
 
 START_TIME = time.time()
@@ -1076,6 +1077,144 @@ def create_app(daemon):
                 "temp_end_time": daemon.crt_engine.temp_end_time
             })
         return jsonify({"success": False, "error": "CRT engine not initialized"}), 500
+
+    # =========================================================================
+    # ELDER CARE & MEDICINE SCHEDULER APIs
+    # =========================================================================
+    @app.route("/api/elder/profile", methods=["GET", "POST"])
+    def elder_profile():
+        elder_cfg = daemon.config_manager.config.setdefault("elder_care", {})
+        if request.method == "POST":
+            data = request.json or {}
+            for field in ["patient_name", "patient_age", "blood_group", "emergency_contact", "doctor_name", "doctor_phone", "language_preference"]:
+                if field in data:
+                    elder_cfg[field] = data[field]
+            daemon.config_manager.config["elder_care"] = elder_cfg
+            daemon.config_manager.save_config()
+            daemon.log("[Elder Care] Patient profile updated.")
+            return jsonify({"success": True, "elder_care": dict(elder_cfg)})
+        return jsonify({"success": True, "elder_care": dict(elder_cfg)})
+
+    @app.route("/api/elder/medicines", methods=["GET", "POST"])
+    def elder_medicines():
+        elder_cfg = daemon.config_manager.config.setdefault("elder_care", {})
+        meds = elder_cfg.setdefault("medicines", [])
+        if request.method == "POST":
+            data = request.json or {}
+            new_med = {
+                "id": data.get("id") or f"med_{int(time.time())}",
+                "name": data.get("name", "Medicine"),
+                "dosage": data.get("dosage", "1 Tablet"),
+                "time": data.get("time", "09:00"),
+                "meal_relation": data.get("meal_relation", "After meal"),
+                "days": data.get("days", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+                "taken_today": False,
+                "voice_reminder": data.get("voice_reminder", "")
+            }
+            meds.append(new_med)
+            daemon.config_manager.save_config()
+            daemon.log(f"[Elder Care] Added new medicine: {new_med['name']} at {new_med['time']}")
+            return jsonify({"success": True, "medicine": new_med, "medicines": list(meds)})
+        return jsonify({"success": True, "medicines": list(meds)})
+
+    @app.route("/api/elder/medicines/<med_id>", methods=["DELETE"])
+    def delete_elder_medicine(med_id):
+        elder_cfg = daemon.config_manager.config.setdefault("elder_care", {})
+        meds = elder_cfg.setdefault("medicines", [])
+        initial_len = len(meds)
+        meds = [m for m in meds if str(m.get("id")) != str(med_id)]
+        elder_cfg["medicines"] = meds
+        daemon.config_manager.save_config()
+        daemon.log(f"[Elder Care] Deleted medicine ID: {med_id}")
+        return jsonify({"success": True, "deleted": len(meds) < initial_len, "medicines": list(meds)})
+
+    @app.route("/api/elder/medicine/toggle", methods=["POST"])
+    def toggle_elder_medicine():
+        data = request.json or {}
+        med_id = str(data.get("id", ""))
+        taken_state = data.get("taken")
+        elder_cfg = daemon.config_manager.config.setdefault("elder_care", {})
+        meds = elder_cfg.setdefault("medicines", [])
+        updated = False
+        target_med = None
+        for m in meds:
+            if str(m.get("id")) == med_id:
+                if taken_state is not None:
+                    m["taken_today"] = bool(taken_state)
+                else:
+                    m["taken_today"] = not m.get("taken_today", False)
+                updated = True
+                target_med = m
+                break
+        if updated:
+            daemon.config_manager.save_config()
+            status_str = "TAKEN" if target_med["taken_today"] else "PENDING"
+            daemon.log(f"[Elder Care] Medicine '{target_med.get('name')}' marked as {status_str}.")
+            if target_med["taken_today"]:
+                daemon.servos.play_gesture("nod")
+            return jsonify({"success": True, "medicine": target_med, "medicines": list(meds)})
+        return jsonify({"success": False, "error": "Medicine ID not found"}), 404
+
+    @app.route("/api/elder/checkin", methods=["POST"])
+    def trigger_elder_checkin():
+        elder_cfg = daemon.config_manager.config.get("elder_care", {})
+        lang = elder_cfg.get("language_preference", "hi")
+        patient_name = elder_cfg.get("patient_name", "Dadu")
+        
+        if "hi" in lang:
+            msg = f"प्रणाम {patient_name} जी! आप अभी कैसा महसूस कर रहे हैं? क्या आपने पानी पिया और अपनी दवाइयाँ समय पर ले लीं? [expression: happy] [nod]"
+        else:
+            msg = f"Hello {patient_name}! How are you feeling right now? Remember to take your scheduled medications and drink water. [expression: happy] [nod]"
+            
+        daemon.servos.set_target("yaw", 90)
+        daemon.servos.set_target("pitch", 90)
+        daemon.servos.play_gesture("nod")
+        
+        threading.Thread(target=daemon.tts.speak, args=(msg, lang), daemon=True).start()
+        daemon.log(f"[Elder Care] Live Health Check-in triggered for {patient_name} ({lang})")
+        return jsonify({"success": True, "message": msg, "language": lang})
+
+    @app.route("/api/elder/sos", methods=["POST"])
+    def trigger_elder_sos():
+        elder_cfg = daemon.config_manager.config.get("elder_care", {})
+        lang = elder_cfg.get("language_preference", "hi")
+        contact = elder_cfg.get("emergency_contact", "Emergency Contact")
+        patient_name = elder_cfg.get("patient_name", "Elder")
+        
+        daemon.servos.set_target("yaw", 90)
+        daemon.servos.set_target("pitch", 90)
+        daemon.servos.play_gesture("shock")
+        
+        if "hi" in lang:
+            alert_msg = f"आपातकालीन अलर्ट! {patient_name} जी को सहायता की आवश्यकता है। आपातकालीन नंबर {contact} पर तुरंत संपर्क किया जा रहा है!"
+        else:
+            alert_msg = f"Emergency Alert! {patient_name} requires immediate assistance. Alerting emergency contact {contact} now!"
+            
+        threading.Thread(target=daemon.tts.speak, args=(alert_msg, lang), daemon=True).start()
+        daemon.log(f"[Elder Care SOS] EMERGENCY SOS TRIGGERED! Contact: {contact}")
+        return jsonify({"success": True, "alert": alert_msg, "emergency_contact": contact})
+
+    @app.route("/api/elder/wellness", methods=["GET", "POST"])
+    def elder_wellness():
+        elder_cfg = daemon.config_manager.config.setdefault("elder_care", {})
+        log_list = elder_cfg.setdefault("wellness_log", [])
+        if request.method == "POST":
+            data = request.json or {}
+            entry = {
+                "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "bp": data.get("bp", "120/80"),
+                "sugar": data.get("sugar", "100 mg/dL"),
+                "water_glasses": int(data.get("water_glasses", 6)),
+                "mood": data.get("mood", "happy"),
+                "notes": data.get("notes", "")
+            }
+            log_list.insert(0, entry)
+            if len(log_list) > 30:
+                elder_cfg["wellness_log"] = log_list[:30]
+            daemon.config_manager.save_config()
+            daemon.log("[Elder Care] Wellness entry logged.")
+            return jsonify({"success": True, "entry": entry, "log": list(log_list)})
+        return jsonify({"success": True, "log": list(log_list)})
 
     return app
 

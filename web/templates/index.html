@@ -658,6 +658,44 @@
             100% { opacity: 0.6; }
         }
 
+        /* Application Navigation Tabs (Desktop & Tablet) */
+        .app-nav-tabs {
+            display: flex;
+            gap: 10px;
+            padding: 10px 40px 0 40px;
+            max-width: 1600px;
+            margin: 0 auto;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .app-nav-tab {
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: var(--text-secondary);
+            padding: 10px 18px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.25s ease;
+        }
+
+        .app-nav-tab:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .app-nav-tab.active {
+            color: var(--accent-cyan);
+            border-bottom-color: var(--accent-cyan);
+            background: rgba(0, 242, 254, 0.05);
+            border-radius: 6px 6px 0 0;
+            text-shadow: 0 0 8px rgba(0, 242, 254, 0.3);
+        }
+
         /* Mobile Bottom Tab Bar */
         .mobile-nav-tabs {
             display: none;
@@ -670,8 +708,8 @@
             left: 0;
             right: 0;
             z-index: 100;
-            grid-template-columns: repeat(3, 1fr);
-            padding: 8px 10px;
+            grid-template-columns: repeat(4, 1fr);
+            padding: 8px 6px;
             box-shadow: 0 -5px 25px rgba(0, 0, 0, 0.6);
         }
 
@@ -789,6 +827,155 @@
             .sensor-grid {
                 max-width: 300px;
             }
+        }
+
+        /* ELDER CARE & MEDICINE SCHEDULER STYLES */
+        .elder-care-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 25px 40px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .elder-header-card {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(30, 41, 59, 0.6) 100%);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            border-radius: 16px;
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .elder-patient-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .elder-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
+            flex-shrink: 0;
+        }
+
+        .sos-btn {
+            background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+            border: 1px solid #f87171;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 0 18px rgba(239, 68, 68, 0.45);
+            transition: all 0.25s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .sos-btn:hover {
+            transform: scale(1.03);
+            box-shadow: 0 0 25px rgba(239, 68, 68, 0.7);
+        }
+
+        .elder-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .app-nav-tabs {
+                display: none !important;
+            }
+            .elder-grid {
+                grid-template-columns: 1fr !important;
+            }
+            .elder-care-container {
+                padding: 15px 15px 95px 15px !important;
+            }
+        }
+
+        .med-card {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            padding: 14px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .med-card.taken {
+            border-color: rgba(16, 185, 129, 0.4);
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        .med-time-badge {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            background: rgba(0, 242, 254, 0.1);
+            padding: 4px 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 242, 254, 0.2);
+        }
+
+        .med-take-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+        }
+
+        .med-take-btn.active-taken {
+            background: #10b981;
+            border-color: #34d399;
+            color: #fff;
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+        }
+
+        .adherence-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+
+        .adherence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #06b6d4);
+            width: 0%;
+            transition: width 0.4s ease;
         }
     </style>
 </head>
@@ -958,20 +1145,225 @@
         </div>
     </header>
 
+    <!-- Desktop Application Navigation Tabs -->
+    <div class="app-nav-tabs">
+        <button class="app-nav-tab active" id="desktop-tab-elder" onclick="switchAppTab('elder')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+            Elder Care & Meds
+        </button>
+        <button class="app-nav-tab" id="desktop-tab-hardware" onclick="switchAppTab('hardware')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+            Companion Hardware & Feed
+        </button>
+        <button class="app-nav-tab" id="desktop-tab-calibration" onclick="switchAppTab('calibration')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Servo Calibration
+        </button>
+        <button class="app-nav-tab" id="desktop-tab-personality" onclick="switchAppTab('personality')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Edge AI & Personality
+        </button>
+    </div>
+
     <!-- Mobile Navigation Tabs -->
     <div class="mobile-nav-tabs">
-        <button class="tab-btn active" onclick="switchMobileTab('diagnostics')">
+        <button class="tab-btn active" id="mobile-tab-elder" onclick="switchMobileTab('elder')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+            Elder Care
+        </button>
+        <button class="tab-btn" id="mobile-tab-diagnostics" onclick="switchMobileTab('diagnostics')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
             System & Feed
         </button>
-        <button class="tab-btn" onclick="switchMobileTab('calibration')">
+        <button class="tab-btn" id="mobile-tab-calibration" onclick="switchMobileTab('calibration')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             Calibration
         </button>
-        <button class="tab-btn" onclick="switchMobileTab('personality')">
+        <button class="tab-btn" id="mobile-tab-personality" onclick="switchMobileTab('personality')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             AI & Mood
         </button>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- DEDICATED ELDER CARE & MEDICINE SCHEDULER APPLICATION VIEW -->
+    <!-- ========================================================================= -->
+    <div id="view-elder-care" class="elder-care-container">
+        <!-- TOP EMERGENCY & PATIENT PROFILE BAR -->
+        <div class="elder-header-card">
+            <div class="elder-patient-info">
+                <div class="elder-avatar">👴</div>
+                <div>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <h2 style="margin:0; font-size:20px; font-weight:700; color:#fff;" id="elder-patient-name">Dadu</h2>
+                        <span class="badge active-cyan" id="elder-patient-age" style="font-size:11px;">74 YRS</span>
+                        <span class="badge" style="font-size:11px; border-color:var(--accent-pink); color:var(--accent-pink);" id="elder-blood-group">B+</span>
+                    </div>
+                    <div style="font-size:12px; color:var(--text-secondary); margin-top:4px; display:flex; gap:15px; flex-wrap:wrap;">
+                        <span>📞 Emergency: <b id="elder-emergency-phone" style="color:#fff;">+91 98765 43210</b></span>
+                        <span>🩺 Doctor: <b id="elder-doctor-info" style="color:#fff;">Dr. Sharma (+91 98300 12345)</b></span>
+                    </div>
+                </div>
+            </div>
+            <div style="display:flex; gap:12px; align-items:center;">
+                <!-- Language Switcher -->
+                <button class="btn" onclick="toggleElderLanguage()" id="elder-lang-btn" style="padding:10px 14px; font-size:12px; font-weight:600; display:flex; align-items:center; gap:6px;">
+                    🇮🇳 भाषा: <span id="elder-lang-label" style="color:var(--accent-cyan); font-weight:bold;">हिन्दी (Hindi)</span>
+                </button>
+                <!-- Emergency SOS Alert Button -->
+                <button class="sos-btn" onclick="triggerElderSOS()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    🚨 SOS Emergency
+                </button>
+            </div>
+        </div>
+
+        <!-- MAIN 2-COLUMN ELDER CARE GRID -->
+        <div class="elder-grid">
+            <!-- COLUMN 1: MEDICINE SCHEDULE CHECKLIST -->
+            <div class="panel" style="display:flex; flex-direction:column; gap:15px;">
+                <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span>💊 Today's Medicine Schedule</span>
+                        <span class="badge" id="med-adherence-badge" style="font-size:10px;">0/0 TAKEN</span>
+                    </div>
+                    <button class="btn btn-cyan" onclick="openAddMedModal()" style="padding:5px 12px; font-size:11px;">+ Add Medicine</button>
+                </div>
+
+                <!-- Daily Adherence Progress Bar -->
+                <div>
+                    <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-secondary);">
+                        <span>Daily Dose Adherence</span>
+                        <span id="med-adherence-pct" style="color:var(--accent-cyan); font-weight:bold;">0%</span>
+                    </div>
+                    <div class="adherence-bar">
+                        <div class="adherence-fill" id="med-adherence-fill"></div>
+                    </div>
+                </div>
+
+                <!-- Medicine Cards List -->
+                <div id="medicines-list" style="display:flex; flex-direction:column; gap:10px; max-height:480px; overflow-y:auto; padding-right:4px;">
+                    <div style="color:var(--text-secondary); font-size:12px; text-align:center; padding:20px;">Loading scheduled medications...</div>
+                </div>
+            </div>
+
+            <!-- COLUMN 2: DAILY WELLNESS & HEALTH CHECK-IN -->
+            <div style="display:flex; flex-direction:column; gap:15px;">
+                <!-- LIVE VOICE HEALTH CHECK-IN TRIGGER -->
+                <div class="panel" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(30, 41, 59, 0.5) 100%); border-color:rgba(6, 182, 212, 0.25);">
+                    <div class="panel-title" style="border:none; padding:0 0 8px 0;">
+                        <span>🗣️ Live Companion Health Check-in</span>
+                    </div>
+                    <p style="font-size:12px; color:var(--text-secondary); margin:0 0 12px 0;">
+                        Commands Bondhu to make eye contact, nod warmly, and speak a wellness check-in inquiry asking Dadu about their health and routine.
+                    </p>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn btn-cyan" onclick="triggerElderCheckin()" style="flex:1; padding:10px; font-weight:700; font-size:13px; display:flex; justify-content:center; align-items:center; gap:8px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                            Trigger Voice Health Check-in
+                        </button>
+                    </div>
+                </div>
+
+                <!-- QUICK WELLNESS ENTRY LOG -->
+                <div class="panel">
+                    <div class="panel-title">💧 Hydration & Vitals Log</div>
+                    
+                    <!-- Water Counter -->
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.05); border-radius:10px; padding:12px 16px; margin-bottom:12px;">
+                        <div>
+                            <div style="font-size:11px; text-transform:uppercase; color:var(--text-secondary); font-weight:600;">Water Intake Today</div>
+                            <div style="font-size:18px; font-weight:800; color:var(--accent-cyan); margin-top:2px;" id="water-glasses-count">6 Glasses</div>
+                        </div>
+                        <button class="btn btn-cyan" onclick="addWaterGlass()" style="padding:6px 14px; font-size:12px;">+1 Glass 💧</button>
+                    </div>
+
+                    <!-- Health Inputs -->
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                        <div>
+                            <label style="font-size:10px; color:var(--text-secondary); text-transform:uppercase; font-weight:600;">Blood Pressure (BP)</label>
+                            <input type="text" id="input-bp" placeholder="e.g. 120/80" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:6px; color:#fff; padding:8px 10px; font-size:12px; margin-top:4px;">
+                        </div>
+                        <div>
+                            <label style="font-size:10px; color:var(--text-secondary); text-transform:uppercase; font-weight:600;">Blood Sugar (Glucose)</label>
+                            <input type="text" id="input-sugar" placeholder="e.g. 110 mg/dL" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:6px; color:#fff; padding:8px 10px; font-size:12px; margin-top:4px;">
+                        </div>
+                    </div>
+
+                    <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center;">
+                        <span style="font-size:11px; color:var(--text-secondary);">Mood:</span>
+                        <select id="select-wellness-mood" style="flex:1; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:6px; color:#fff; padding:6px 10px; font-size:12px; outline:none;">
+                            <option value="happy">😊 Happy & Active</option>
+                            <option value="calm">😌 Calm & Relaxed</option>
+                            <option value="tired">🥱 Tired / Sleepy</option>
+                            <option value="unwell">🤒 Feeling Mild Pain / Unwell</option>
+                        </select>
+                        <button class="btn btn-pink" onclick="saveWellnessLog()" style="padding:6px 14px; font-size:12px;">Save Log</button>
+                    </div>
+
+                    <!-- Offline Edge AI Spec Card -->
+                    <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.05); border-radius:8px; padding:10px; font-size:11px; display:flex; flex-direction:column; gap:6px;">
+                        <div style="display:flex; justify-content:space-between; color:var(--text-secondary);">
+                            <span>Edge Voice Pipeline:</span>
+                            <span style="color:#10b981; font-weight:bold;">🟢 Active & Offline</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; color:var(--text-secondary);">
+                            <span>STT Engine:</span>
+                            <span style="color:#fff;">Vosk (Hindi + English)</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; color:var(--text-secondary);">
+                            <span>Local LLM:</span>
+                            <span style="color:var(--accent-cyan);">Qwen2.5-0.5B (llama.cpp)</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; color:var(--text-secondary);">
+                            <span>RAM Footprint:</span>
+                            <span style="color:#fff;">~310 MB / 512 MB Pi Zero 2W</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADD MEDICINE MODAL -->
+    <div id="add-medicine-modal" class="cal-modal">
+        <div class="cal-modal-content" style="max-width:500px; text-align:left;">
+            <h3 style="margin:0 0 10px 0; color:var(--accent-cyan); font-size:16px;">+ Schedule New Medicine</h3>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <div>
+                    <label style="font-size:11px; color:var(--text-secondary); text-transform:uppercase;">Medicine Name</label>
+                    <input type="text" id="med-modal-name" placeholder="e.g. Amlodipine (Blood Pressure)" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; padding:8px 10px; font-size:12px; margin-top:4px;">
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div>
+                        <label style="font-size:11px; color:var(--text-secondary); text-transform:uppercase;">Dosage</label>
+                        <input type="text" id="med-modal-dosage" placeholder="e.g. 5 mg (1 Tablet)" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; padding:8px 10px; font-size:12px; margin-top:4px;">
+                    </div>
+                    <div>
+                        <label style="font-size:11px; color:var(--text-secondary); text-transform:uppercase;">Scheduled Time</label>
+                        <input type="time" id="med-modal-time" value="08:30" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; padding:8px 10px; font-size:12px; margin-top:4px; font-family:'Share Tech Mono', monospace;">
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size:11px; color:var(--text-secondary); text-transform:uppercase;">Meal Relation</label>
+                    <select id="med-modal-meal" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; padding:8px 10px; font-size:12px; margin-top:4px;">
+                        <option value="After breakfast">After breakfast</option>
+                        <option value="Before breakfast">Before breakfast (Empty stomach)</option>
+                        <option value="After lunch">After lunch</option>
+                        <option value="After dinner">After dinner</option>
+                        <option value="At bedtime">At bedtime</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:11px; color:var(--text-secondary); text-transform:uppercase;">Spoken Voice Reminder Prompt</label>
+                    <input type="text" id="med-modal-voice" placeholder="e.g. समय हो गया है, कृपया नाश्ते के बाद अपनी बीपी की दवा ले लीजिए।" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; padding:8px 10px; font-size:12px; margin-top:4px;">
+                </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:15px; border-top:1px solid rgba(255,255,255,0.05); padding-top:12px;">
+                <button class="btn" onclick="closeAddMedModal()">Cancel</button>
+                <button class="btn btn-cyan" onclick="saveNewMedicine()" style="font-weight:bold;">Save Medicine</button>
+            </div>
+        </div>
     </div>
 
     <div class="dashboard-container">
@@ -1880,35 +2272,77 @@
             document.getElementById("lid-rl").setAttribute("d", `M 170 70 Q 210 ${rl_y} 250 70 Z`);
         }
 
+        // Tab switching for desktop and tablet view
+        function switchAppTab(tabName) {
+            document.querySelectorAll(".app-nav-tabs .app-nav-tab").forEach(btn => {
+                btn.classList.remove("active");
+            });
+
+            const elderView = document.getElementById("view-elder-care");
+            const dashboardContainer = document.querySelector(".dashboard-container");
+
+            if (tabName === 'elder') {
+                const btn = document.getElementById("desktop-tab-elder");
+                if (btn) btn.classList.add("active");
+                if (elderView) elderView.style.display = "flex";
+                if (dashboardContainer) dashboardContainer.style.display = "none";
+                fetchElderCareData();
+            } else {
+                if (tabName === 'hardware') {
+                    const btn = document.getElementById("desktop-tab-hardware");
+                    if (btn) btn.classList.add("active");
+                } else if (tabName === 'calibration') {
+                    const btn = document.getElementById("desktop-tab-calibration");
+                    if (btn) btn.classList.add("active");
+                } else if (tabName === 'personality') {
+                    const btn = document.getElementById("desktop-tab-personality");
+                    if (btn) btn.classList.add("active");
+                }
+                if (elderView) elderView.style.display = "none";
+                if (dashboardContainer) dashboardContainer.style.display = "grid";
+            }
+        }
+
         // Tab switching for mobile view
         function switchMobileTab(tabName) {
-            // Remove active status from all tab buttons
             document.querySelectorAll(".mobile-nav-tabs .tab-btn").forEach(btn => {
                 btn.classList.remove("active");
             });
 
-            // Hide all three columns
+            const elderView = document.getElementById("view-elder-care");
+            const dashboardContainer = document.querySelector(".dashboard-container");
             const cols = ["column-diagnostics", "column-calibration", "column-personality"];
             cols.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.remove("mobile-active-tab");
             });
 
-            let btnIndex = 0;
+            if (tabName === 'elder') {
+                const btn = document.getElementById("mobile-tab-elder");
+                if (btn) btn.classList.add("active");
+                if (elderView) elderView.style.display = "flex";
+                if (dashboardContainer) dashboardContainer.style.display = "none";
+                fetchElderCareData();
+                return;
+            }
+
+            if (elderView) elderView.style.display = "none";
+            if (dashboardContainer) dashboardContainer.style.display = "grid";
+
+            let activeBtnId = "";
             let activeColId = "";
             if (tabName === 'diagnostics') {
-                btnIndex = 0;
+                activeBtnId = "mobile-tab-diagnostics";
                 activeColId = "column-diagnostics";
             } else if (tabName === 'calibration') {
-                btnIndex = 1;
+                activeBtnId = "mobile-tab-calibration";
                 activeColId = "column-calibration";
             } else if (tabName === 'personality') {
-                btnIndex = 2;
+                activeBtnId = "mobile-tab-personality";
                 activeColId = "column-personality";
             }
 
-            // Mark active button and display active column
-            const activeBtn = document.querySelectorAll(".mobile-nav-tabs .tab-btn")[btnIndex];
+            const activeBtn = document.getElementById(activeBtnId);
             if (activeBtn) activeBtn.classList.add("active");
 
             const activeCol = document.getElementById(activeColId);
@@ -1917,10 +2351,276 @@
 
         // Initialize active tab on load/resize
         window.addEventListener("load", () => {
+            fetchElderCareData();
             if (window.innerWidth <= 1024) {
-                switchMobileTab('diagnostics');
+                switchMobileTab('elder');
+            } else {
+                switchAppTab('elder');
             }
         });
+
+        // =========================================================================
+        // ELDER CARE JAVASCRIPT LOGIC
+        // =========================================================================
+        let currentElderData = { medicines: [], elder_care: {} };
+
+        function fetchElderCareData() {
+            fetch("/api/elder/profile")
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.elder_care) {
+                        currentElderData.elder_care = data.elder_care;
+                        renderElderProfile(data.elder_care);
+                        if (data.elder_care.medicines) {
+                            renderMedicinesList(data.elder_care.medicines);
+                        }
+                    }
+                })
+                .catch(err => console.error("Error fetching elder profile:", err));
+        }
+
+        function renderElderProfile(profile) {
+            if (profile.patient_name) document.getElementById("elder-patient-name").innerText = profile.patient_name;
+            if (profile.patient_age) document.getElementById("elder-patient-age").innerText = `${profile.patient_age} YRS`;
+            if (profile.blood_group) document.getElementById("elder-blood-group").innerText = profile.blood_group;
+            if (profile.emergency_contact) document.getElementById("elder-emergency-phone").innerText = profile.emergency_contact;
+            if (profile.doctor_name || profile.doctor_phone) {
+                document.getElementById("elder-doctor-info").innerText = `${profile.doctor_name || 'Dr.'} (${profile.doctor_phone || ''})`;
+            }
+            
+            const isHindi = (profile.language_preference || 'hi').includes('hi');
+            document.getElementById("elder-lang-label").innerText = isHindi ? "हिन्दी (Hindi)" : "English";
+            document.getElementById("elder-lang-btn").innerHTML = isHindi ?
+                `🇮🇳 भाषा: <span id="elder-lang-label" style="color:var(--accent-cyan); font-weight:bold;">हिन्दी (Hindi)</span>` :
+                `🇬🇧 Lang: <span id="elder-lang-label" style="color:var(--accent-cyan); font-weight:bold;">English</span>`;
+        }
+
+        function renderMedicinesList(medicines) {
+            currentElderData.medicines = medicines || [];
+            const listContainer = document.getElementById("medicines-list");
+            if (!listContainer) return;
+
+            if (medicines.length === 0) {
+                listContainer.innerHTML = `<div style="color:var(--text-secondary); font-size:12px; text-align:center; padding:20px;">No medications scheduled. Click "+ Add Medicine" to add one!</div>`;
+                updateAdherenceBar(0, 0);
+                return;
+            }
+
+            let takenCount = 0;
+            listContainer.innerHTML = "";
+
+            medicines.forEach(med => {
+                const isTaken = !!med.taken_today;
+                if (isTaken) takenCount++;
+
+                const card = document.createElement("div");
+                card.className = `med-card ${isTaken ? 'taken' : ''}`;
+                card.id = `med-card-${med.id}`;
+
+                card.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div class="med-time-badge">${med.time || '09:00'}</div>
+                        <div>
+                            <div style="font-weight:700; font-size:13px; color:#fff; display:flex; align-items:center; gap:8px;">
+                                <span>${med.name}</span>
+                                <span style="font-size:10px; font-weight:normal; background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:4px; color:var(--text-secondary);">${med.dosage || ''}</span>
+                            </div>
+                            <div style="font-size:11px; color:var(--text-secondary); margin-top:2px;">
+                                <span>🍽️ ${med.meal_relation || 'Routine'}</span>
+                                ${med.voice_reminder ? `<span style="font-style:italic; opacity:0.75; margin-left:6px;">• "${med.voice_reminder.substring(0, 32)}..."</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        ${med.voice_reminder ? `
+                            <button class="btn" onclick="previewVoiceReminder('${encodeURIComponent(med.voice_reminder)}')" title="Listen Voice Prompt" style="padding:6px 10px; font-size:11px;">
+                                🔊
+                            </button>
+                        ` : ''}
+                        <button class="med-take-btn ${isTaken ? 'active-taken' : ''}" onclick="toggleElderMedicine('${med.id}')">
+                            ${isTaken ? '✓ Taken' : 'Mark Taken'}
+                        </button>
+                        <button class="delete-btn" onclick="deleteElderMedicine('${med.id}')" title="Delete Medicine" style="font-size:14px; padding:4px;">
+                            ✕
+                        </button>
+                    </div>
+                `;
+                listContainer.appendChild(card);
+            });
+
+            updateAdherenceBar(takenCount, medicines.length);
+        }
+
+        function updateAdherenceBar(taken, total) {
+            const badge = document.getElementById("med-adherence-badge");
+            const pctLabel = document.getElementById("med-adherence-pct");
+            const fill = document.getElementById("med-adherence-fill");
+
+            if (total === 0) {
+                if (badge) badge.innerText = "0/0 TAKEN";
+                if (pctLabel) pctLabel.innerText = "0%";
+                if (fill) fill.style.width = "0%";
+                return;
+            }
+
+            const pct = Math.round((taken / total) * 100);
+            if (badge) {
+                badge.innerText = `${taken}/${total} TAKEN`;
+                badge.style.color = taken === total ? "#10b981" : "var(--accent-cyan)";
+                badge.style.borderColor = taken === total ? "#10b981" : "rgba(255,255,255,0.08)";
+            }
+            if (pctLabel) pctLabel.innerText = `${pct}%`;
+            if (fill) fill.style.width = `${pct}%`;
+        }
+
+        function toggleElderMedicine(id) {
+            fetch("/api/elder/medicine/toggle", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: id })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.medicines) {
+                    renderMedicinesList(data.medicines);
+                }
+            })
+            .catch(err => console.error("Error toggling medicine:", err));
+        }
+
+        function deleteElderMedicine(id) {
+            if (!confirm("Are you sure you want to remove this scheduled medication?")) return;
+            fetch(`/api/elder/medicines/${id}`, { method: "DELETE" })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.medicines) {
+                        renderMedicinesList(data.medicines);
+                    }
+                })
+                .catch(err => console.error("Error deleting medicine:", err));
+        }
+
+        function triggerElderCheckin() {
+            fetch("/api/elder/checkin", { method: "POST" })
+                .then(res => res.json())
+                .then(data => {
+                    alert("Bondhu Companion is now performing a live health check-in voice conversation with Dadu!");
+                })
+                .catch(err => console.error("Error triggering checkin:", err));
+        }
+
+        function triggerElderSOS() {
+            if (!confirm("🚨 TRIGGER EMERGENCY SOS?\nThis will alert family and emergency contacts, play warning alert sounds, and trigger companion alarm gestures.")) return;
+            fetch("/api/elder/sos", { method: "POST" })
+                .then(res => res.json())
+                .then(data => {
+                    alert(`🚨 EMERGENCY SOS ACTIVE!\n${data.alert}\nEmergency contact notified: ${data.emergency_contact}`);
+                })
+                .catch(err => console.error("Error triggering SOS:", err));
+        }
+
+        function toggleElderLanguage() {
+            const current = (currentElderData.elder_care.language_preference || 'hi');
+            const nextLang = current === 'hi' ? 'en' : 'hi';
+            fetch("/api/elder/profile", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ language_preference: nextLang })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.elder_care) {
+                    currentElderData.elder_care = data.elder_care;
+                    renderElderProfile(data.elder_care);
+                }
+            })
+            .catch(err => console.error("Error updating language:", err));
+        }
+
+        function previewVoiceReminder(encodedText) {
+            const text = decodeURIComponent(encodedText);
+            const lang = currentElderData.elder_care.language_preference || 'hi';
+            fetch("/api/speech/speak", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: text, language: lang === 'hi' ? 'hi-IN' : 'en-US' })
+            }).catch(err => console.error("Error speaking preview:", err));
+        }
+
+        let dailyWaterGlasses = 6;
+        function addWaterGlass() {
+            dailyWaterGlasses++;
+            const label = document.getElementById("water-glasses-count");
+            if (label) label.innerText = `${dailyWaterGlasses} Glasses`;
+            saveWellnessLog(false);
+        }
+
+        function saveWellnessLog(showAlert = true) {
+            const bp = document.getElementById("input-bp").value.trim() || "120/80";
+            const sugar = document.getElementById("input-sugar").value.trim() || "110 mg/dL";
+            const mood = document.getElementById("select-wellness-mood").value;
+            fetch("/api/elder/wellness", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    bp: bp,
+                    sugar: sugar,
+                    water_glasses: dailyWaterGlasses,
+                    mood: mood
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (showAlert) alert("Daily wellness vitals successfully recorded!");
+            })
+            .catch(err => console.error("Error saving wellness log:", err));
+        }
+
+        function openAddMedModal() {
+            const modal = document.getElementById("add-medicine-modal");
+            if (modal) modal.classList.add("active");
+        }
+
+        function closeAddMedModal() {
+            const modal = document.getElementById("add-medicine-modal");
+            if (modal) modal.classList.remove("active");
+        }
+
+        function saveNewMedicine() {
+            const name = document.getElementById("med-modal-name").value.trim();
+            const dosage = document.getElementById("med-modal-dosage").value.trim();
+            const time = document.getElementById("med-modal-time").value.trim();
+            const meal = document.getElementById("med-modal-meal").value;
+            const voice = document.getElementById("med-modal-voice").value.trim();
+
+            if (!name) {
+                alert("Please enter a medicine name.");
+                return;
+            }
+
+            fetch("/api/elder/medicines", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: name,
+                    dosage: dosage || "1 Tablet",
+                    time: time || "09:00",
+                    meal_relation: meal,
+                    voice_reminder: voice
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.medicines) {
+                    closeAddMedModal();
+                    document.getElementById("med-modal-name").value = "";
+                    document.getElementById("med-modal-dosage").value = "";
+                    document.getElementById("med-modal-voice").value = "";
+                    renderMedicinesList(data.medicines);
+                }
+            })
+            .catch(err => console.error("Error adding medicine:", err));
+        }
 
         // SVG Drag / Touch to Move Eyes manually
         const eyeCanvas = document.getElementById("eye-canvas");

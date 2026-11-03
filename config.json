@@ -85,7 +85,7 @@
     "wake_word": "bondhu",
     "wake_word_engine": "openwakeword",
     "wake_sensitivity": 0.5,
-    "language": "en-US",
+    "language": "hi-IN",
     "speech_threshold": 0.8,
     "tts_provider": "edge-tts",
     "bluetooth_speaker_mac": "41:42:9D:09:4D:D3",
@@ -93,8 +93,60 @@
     "sound_reactions": false
   },
   "zeroclaw": {
+    "enabled": false,
     "api_url": "http://127.0.0.1:42617/api/chat",
     "api_token": "companion_token_12345"
+  },
+  "elder_care": {
+    "patient_name": "Dadu",
+    "patient_age": 74,
+    "blood_group": "B+",
+    "emergency_contact": "+91 98765 43210",
+    "doctor_name": "Dr. Sharma",
+    "doctor_phone": "+91 98300 12345",
+    "language_preference": "hi",
+    "medicines": [
+      {
+        "id": "med_1",
+        "name": "Amlodipine (BP)",
+        "dosage": "5 mg (1 Tab)",
+        "time": "08:30",
+        "meal_relation": "After breakfast",
+        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        "taken_today": false,
+        "voice_reminder": "समय हो गया है, कृपया नाश्ते के बाद अपनी बीपी की दवा ले लीजिए।"
+      },
+      {
+        "id": "med_2",
+        "name": "Metformin",
+        "dosage": "500 mg (1 Tab)",
+        "time": "13:30",
+        "meal_relation": "After lunch",
+        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        "taken_today": false,
+        "voice_reminder": "दोपहर का खाना हो गया हो तो कृपया अपनी शुगर की गोली ले लें।"
+      },
+      {
+        "id": "med_3",
+        "name": "Multivitamin & Calcium",
+        "dosage": "1 Capsule",
+        "time": "20:30",
+        "meal_relation": "After dinner",
+        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        "taken_today": false,
+        "voice_reminder": "रात के खाने के बाद कैल्शियम की गोली लेना न भूलें।"
+      }
+    ],
+    "wellness_log": [
+      {
+        "date": "2026-11-03",
+        "bp": "122/80",
+        "sugar": "110 mg/dL",
+        "water_glasses": 6,
+        "mood": "happy",
+        "notes": "Feeling energetic and relaxed."
+      }
+    ]
   },
   "alarms": [
     {

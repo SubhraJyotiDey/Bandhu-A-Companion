@@ -561,6 +561,40 @@ class CompanionDaemon:
                             self.servos.play_gesture("startup")
                             self.log("[Sleep Mode] Scheduled time reached. Sleep mode deactivated.")
 
+                # Midnight reset for daily medicine adherence
+                if current_time_str == "00:00":
+                    elder_cfg = self.config_manager.config.get("elder_care", {})
+                    meds = elder_cfg.get("medicines", [])
+                    reset_needed = False
+                    for m in meds:
+                        if m.get("taken_today", False):
+                            m["taken_today"] = False
+                            reset_needed = True
+                    if reset_needed:
+                        self.config_manager.save_config()
+                        self.log("[Elder Care] Daily medicine adherence reset for the new day.")
+
+                # Elder Care Medicine Schedulers
+                elder_cfg = self.config_manager.config.get("elder_care", {})
+                med_list = elder_cfg.get("medicines", [])
+                elder_lang = elder_cfg.get("language_preference", "hi")
+                patient_name = elder_cfg.get("patient_name", "Dadu")
+                for med in med_list:
+                    if med.get("time") == current_time_str and not med.get("taken_today", False):
+                        days = med.get("days", [])
+                        if not days or current_day in days:
+                            reminder_text = med.get("voice_reminder")
+                            if not reminder_text:
+                                if "hi" in elder_lang:
+                                    reminder_text = f"प्रणाम {patient_name} जी! समय हो गया है, कृपया अपनी {med.get('name')} की दवा ले लीजिए।"
+                                else:
+                                    reminder_text = f"Hello {patient_name}! It is {current_time_str}. Time to take your {med.get('name')} {med.get('dosage')}."
+                            self.log(f"[Elder Care Reminder] Spoken alert for {med.get('name')} at {current_time_str}")
+                            self.servos.set_target("yaw", 90)
+                            self.servos.set_target("pitch", 90)
+                            self.servos.play_gesture("nod")
+                            threading.Thread(target=self.tts.speak, args=(reminder_text, elder_lang), daemon=True).start()
+
                 alarms = self.config_manager.config.get("alarms", [])
                 for alarm in alarms:
                     if alarm.get("enabled", False) and alarm.get("time") == current_time_str:
