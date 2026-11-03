@@ -9,6 +9,7 @@ import sys
 import json
 import random
 import subprocess
+import shutil
 import time
 
 _original_print = print
@@ -38,11 +39,17 @@ class LocalLlamaClient:
         self.base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         
         # Paths to llama.cpp binary and Qwen2.5 GGUF model
+        home_bin = os.path.expanduser("~/.local/bin")
         self.llama_cli_candidates = [
             os.path.join(self.base_dir, "llama.cpp", "build", "bin", "llama-cli"),
             os.path.join(self.base_dir, "llama.cpp", "main"),
             os.path.join(self.base_dir, "bin", "llama-cli"),
-            "llama-cli"
+            os.path.join(home_bin, "llama-cli"),
+            os.path.join(home_bin, "llama"),
+            "/usr/local/bin/llama-cli",
+            "/usr/local/bin/llama",
+            "llama-cli",
+            "llama"
         ]
         
         self.model_candidates = [
@@ -53,11 +60,15 @@ class LocalLlamaClient:
         ]
 
     def _resolve_paths(self):
-        """Finds valid paths for llama-cli and the model."""
+        """Finds valid paths for llama-cli / llama and the model."""
         cli_path = None
         for p in self.llama_cli_candidates:
-            if os.path.isfile(p) and os.access(p, os.X_OK):
+            if os.path.isabs(p) and os.path.isfile(p) and os.access(p, os.X_OK):
                 cli_path = p
+                break
+            resolved = shutil.which(p)
+            if resolved:
+                cli_path = resolved
                 break
                 
         model_path = None
@@ -118,7 +129,7 @@ class LocalLlamaClient:
         return self._generate_elder_care_response(text, lang)
 
     def _run_llama_cli(self, cli_path, model_path, user_text, lang):
-        """Runs llama-cli with strict memory constraints suitable for Pi Zero 2W (512MB RAM)."""
+        """Runs llama-cli or llama with strict memory constraints suitable for Pi Zero 2W (512MB RAM)."""
         sys_prompt = self.get_system_prompt(lang)
         prompt = (
             f"<|im_start|>system\n{sys_prompt}<|im_end|>\n"
@@ -126,17 +137,11 @@ class LocalLlamaClient:
             f"<|im_start|>assistant\n"
         )
         
-        cmd = [
-            cli_path,
-            "-m", model_path,
-            "-p", prompt,
-            "-n", "64",           # Limit to 64 tokens for quick response and low RAM usage
-            "-c", "512",          # 512 context window
-            "--temp", "0.7",
-            "--top-p", "0.9",
-            "--threads", "3",     # 3 of 4 cores (leaving 1 core for OS/audio)
-            "--no-display-prompt"
-        ]
+        # Build command depending on binary variant (standalone llama-cli vs unified llama cli)
+        if os.path.basename(cli_path) == "llama":
+            cmd = [cli_path, "cli", "-m", model_path, "-p", prompt, "-n", "64", "-c", "512", "--temp", "0.7", "--top-p", "0.9", "--threads", "3", "--no-display-prompt"]
+        else:
+            cmd = [cli_path, "-m", model_path, "-p", prompt, "-n", "64", "-c", "512", "--temp", "0.7", "--top-p", "0.9", "--threads", "3", "--no-display-prompt"]
         
         proc = subprocess.run(
             cmd,

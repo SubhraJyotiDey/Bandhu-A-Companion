@@ -67,37 +67,48 @@ else
     echo "[4/5] Qwen2.5-0.5B GGUF model already present: $MODEL_FILE"
 fi
 
-# 5. Build llama.cpp for ARM Cortex-A53 (Pi Zero 2W)
-echo "[5/5] Building llama.cpp optimized for ARM Cortex-A53 (512MB RAM safe)..."
+# 5. Acquire llama.cpp binary (Pre-built ARM64 binary or lightweight source build)
+echo "[5/5] Setting up llama.cpp runtime for ARM Cortex-A53..."
 
-# Ensure at least 2GB swap to prevent compiler OOM killer
-SWAP_TOTAL=$(free -m | awk '/Swap:/ {print $2}')
-if [ "$SWAP_TOTAL" -lt 1500 ]; then
-    echo "Increasing swapfile to 2048 MB for compilation..."
-    if [ -f /etc/dphys-swapfile ]; then
-        sudo dphys-swapfile swapoff || true
-        sudo sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile || true
-        sudo dphys-swapfile setup || true
-        sudo dphys-swapfile swapon || true
+# First check if llama or llama-cli is already available
+if command -v llama-cli >/dev/null 2>&1 || command -v llama >/dev/null 2>&1 || [ -f "$HOME/.local/bin/llama" ]; then
+    echo "llama binary already installed."
+else
+    echo "Attempting to install precompiled official ARM64 binary..."
+    if curl -LsSf https://llama.app/install.sh | sh; then
+        echo "Official precompiled binary installed successfully to ~/.local/bin/llama."
+        export PATH="$HOME/.local/bin:$PATH"
+    else
+        echo "Precompiled install skipped or failed. Falling back to source build..."
+        # Ensure at least 2GB swap
+        SWAP_TOTAL=$(free -m | awk '/Swap:/ {print $2}')
+        if [ "$SWAP_TOTAL" -lt 1500 ]; then
+            echo "Increasing swapfile to 2048 MB for compilation..."
+            if [ -f /etc/dphys-swapfile ]; then
+                sudo dphys-swapfile swapoff || true
+                sudo sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile || true
+                sudo dphys-swapfile setup || true
+                sudo dphys-swapfile swapon || true
+            fi
+        fi
+
+        if [ ! -d "$PROJECT_ROOT/llama.cpp" ]; then
+            git clone --depth 1 https://github.com/ggerganov/llama.cpp.git "$PROJECT_ROOT/llama.cpp"
+        fi
+
+        cd "$PROJECT_ROOT/llama.cpp"
+        rm -rf build
+
+        # MinSizeRel uses -Os which reduces GCC compiler RAM by 75% on llama-model.cpp
+        cmake -B build \
+            -DCMAKE_BUILD_TYPE=MinSizeRel \
+            -DGGML_NATIVE=OFF \
+            -DGGML_CPU_ARM_ARCH=armv8-a \
+            -DLLAMA_CURL=OFF
+
+        cmake --build build --config MinSizeRel --target llama-cli -j1
     fi
 fi
-
-if [ ! -d "$PROJECT_ROOT/llama.cpp" ]; then
-    git clone --depth 1 https://github.com/ggerganov/llama.cpp.git "$PROJECT_ROOT/llama.cpp"
-fi
-
-cd "$PROJECT_ROOT/llama.cpp"
-# Clean previous failed build
-rm -rf build
-
-# Configure build with armv8-a and disable curl
-cmake -B build \
-    -DGGML_NATIVE=OFF \
-    -DGGML_CPU_ARM_ARCH=armv8-a \
-    -DLLAMA_CURL=OFF
-
-# Compile using single thread (-j1) to strictly avoid compiler memory exhaustion
-cmake --build build --config Release --target llama-cli -j1
 
 cd "$PROJECT_ROOT"
 
