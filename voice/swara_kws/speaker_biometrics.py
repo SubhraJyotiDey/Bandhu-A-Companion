@@ -15,7 +15,10 @@ import json
 import numpy as np
 import librosa
 from scipy import signal
-import soundfile as sf
+try:
+    import soundfile as sf
+except ImportError:
+    sf = None
 
 try:
     from voice.swara_kws.audio_features import SAMPLE_RATE, NUM_SAMPLES, load_audio

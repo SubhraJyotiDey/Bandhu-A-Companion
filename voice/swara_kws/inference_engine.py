@@ -63,18 +63,22 @@ class PrototypeEngine:
         tflite_path = model_checkpoint if (model_checkpoint and model_checkpoint.endswith(".tflite")) else DEFAULT_TFLITE_PATH
         torch_path = model_checkpoint if (model_checkpoint and model_checkpoint.endswith(".pth")) else DEFAULT_TORCH_PATH
 
-        # 1. Try TFLite (tflite_runtime or tensorflow)
+        # 1. Try TFLite (ai_edge_litert, tflite_runtime, or tensorflow)
         if os.path.exists(tflite_path):
             interpreter = None
             try:
-                import tflite_runtime.interpreter as tflite
-                interpreter = tflite.Interpreter(model_path=tflite_path)
+                from ai_edge_litert.interpreter import Interpreter
+                interpreter = Interpreter(model_path=tflite_path)
             except ImportError:
                 try:
-                    import tensorflow as tf
-                    interpreter = tf.lite.Interpreter(model_path=tflite_path)
+                    import tflite_runtime.interpreter as tflite
+                    interpreter = tflite.Interpreter(model_path=tflite_path)
                 except ImportError:
-                    pass
+                    try:
+                        import tensorflow as tf
+                        interpreter = tf.lite.Interpreter(model_path=tflite_path)
+                    except ImportError:
+                        pass
 
             if interpreter is not None:
                 try:

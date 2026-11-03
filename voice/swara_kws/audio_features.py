@@ -11,7 +11,10 @@ Optimized for ultra-fast I/O and microcontroller feature extraction parity:
 """
 
 import numpy as np
-import soundfile as sf
+try:
+    import soundfile as sf
+except ImportError:
+    sf = None
 import librosa
 from scipy import signal
 
@@ -27,13 +30,28 @@ HOP_LENGTH = 320  # 20 ms
 
 def load_audio(file_path, target_sr=SAMPLE_RATE, target_duration=AUDIO_DURATION):
     """
-    Fast audio loader using soundfile with resampling and mono conversion.
+    Fast audio loader using soundfile or librosa/scipy with resampling and mono conversion.
     """
-    try:
-        data, sr = sf.read(file_path, dtype="float32")
-    except Exception:
-        data, sr = librosa.load(file_path, sr=target_sr, mono=True)
-        return _format_audio_length(data, target_sr, target_duration)
+    data = None
+    sr = target_sr
+
+    if sf is not None:
+        try:
+            data, sr = sf.read(file_path, dtype="float32")
+        except Exception:
+            data = None
+
+    if data is None:
+        try:
+            data, sr = librosa.load(file_path, sr=target_sr, mono=True)
+            return _format_audio_length(data, target_sr, target_duration)
+        except Exception:
+            import wave
+            with wave.open(file_path, 'rb') as wf:
+                sr = wf.getframerate()
+                n_frames = wf.getnframes()
+                frames = wf.readframes(n_frames)
+                data = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
 
     # Convert to mono if multi-channel
     if data.ndim > 1:
