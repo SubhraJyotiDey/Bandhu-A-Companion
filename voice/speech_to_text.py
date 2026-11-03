@@ -100,12 +100,16 @@ class STTManager:
         try:
             import speech_recognition as sr
             self.recognizer = sr.Recognizer()
-            # Dynamic energy threshold adjustments
             self.recognizer.dynamic_energy_threshold = True
-            self.recognizer.energy_threshold = 300 # Baseline sensitivity
+            self.recognizer.energy_threshold = 300
             
-            self.microphone = sr.Microphone()
-            print("[STT] Google SpeechRecognition initialized successfully.")
+            # Protected microphone initialization to prevent ALSA/C-lib SIGSEGV
+            try:
+                self.microphone = sr.Microphone()
+                print("[STT] Google SpeechRecognition initialized successfully.")
+            except Exception as e:
+                print(f"[STT Warning] Microphone initialization skipped or failed: {e}. STT will use direct audio streams.")
+                self.microphone = None
         except ImportError:
             print("[STT Warning] speech_recognition or PyAudio is missing. Cloud STT will run in mock/text-only mode.")
             self.recognizer = None
