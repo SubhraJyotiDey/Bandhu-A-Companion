@@ -1,4 +1,29 @@
-# Voice Models
+# Voice Models & Wake Word Engines
+
+## Swara-KWS Few-Shot Metric Keyword Spotting (Recommended)
+
+Swara-KWS is an offline, few-shot metric learning wake word engine located in `voice/swara_kws/`.
+It runs a frozen Depthwise Separable CNN (DS-CNN) backbone to project 1-second audio into a 64-dimensional embedding vector, and dynamically matches against enrolled centroid prototypes using cosine similarity with SNR-adaptive dynamic thresholding and optional speaker biometric verification.
+
+### Pre-trained Model Checkpoints
+Located in `voice/swara_kws/models/`:
+- `kws_backbone.pth`: PyTorch frozen backbone (dim=64, ~170KB)
+- `kws_backbone_fp32.tflite`: Edge TFLite model (~150KB)
+- `kws_backbone_int8.tflite`: Quantized INT8 model for microcontrollers (~62KB)
+
+### Enrolling Custom Wake Words Instantly (No Retraining)
+```bash
+# Enroll custom wake word with 3 repetitions:
+python scripts/enroll_swara.py --keyword bondhu --record --k 3
+
+# List all active registered keywords:
+python scripts/enroll_swara.py --list
+
+# Live test detection in terminal:
+python scripts/enroll_swara.py --test
+```
+
+---
 
 ## Custom openWakeWord Models
 

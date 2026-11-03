@@ -19,9 +19,12 @@ This project implements a friendly, extroverted, multilingual AI agent companion
     *   `person_sensor.py`: Pure Python direct I2C read client for face centering. Mock backend.
     *   `gpio_manager.py`: Directly controls Pi Output pins. Mock backend.
 *   `voice/`:
-    *   `wake_detector.py`: Energy-based ambient listener loop.
+    *   `swara_kws/`: Few-shot metric learning keyword spotting engine (DS-CNN 64-D metric backbone, SNR-adaptive dynamic thresholding, speaker biometrics).
+    *   `wake_detector.py`: Multi-engine ambient wake word listener loop (Swara-KWS, openWakeWord, Google STT).
     *   `speech_to_text.py`: Multilingual SpeechRecognition Google Cloud wrapper.
     *   `text_to_speech.py`: Natural voice generation using Edge-TTS (online) with SAPI5/espeak (offline fallback).
+*   `scripts/`:
+    *   `enroll_swara.py`: Dynamic enrollment CLI to record new wake words and biometric voiceprints in seconds.
 *   `brain/`:
     *   `agent_client.py`: Local ZeroClaw API endpoint query.
 *   `mcp/`:

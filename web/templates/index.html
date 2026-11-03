@@ -1308,6 +1308,10 @@
                             <span style="color:#10b981; font-weight:bold;">🟢 Active & Offline</span>
                         </div>
                         <div style="display:flex; justify-content:space-between; color:var(--text-secondary);">
+                            <span>Wake Word Engine:</span>
+                            <span style="color:var(--accent-cyan); font-weight:bold;">Swara-KWS (Primary)</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; color:var(--text-secondary);">
                             <span>STT Engine:</span>
                             <span style="color:#fff;">Vosk (Hindi + English)</span>
                         </div>
@@ -1648,6 +1652,15 @@
                     </div>
                     <div style="width: 100%; display: flex; flex-direction: column; gap: 5px; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-secondary);">
+                            <span>WAKE WORD ENGINE</span>
+                            <span id="badge-wake-engine" style="background: rgba(0, 240, 255, 0.15); color: var(--accent-cyan); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;">PRIMARY: SWARA-KWS</span>
+                        </div>
+                        <select id="select-wake-engine" onchange="setWakeEngine(this.value)" style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; padding: 6px 10px; font-size: 12px; outline: none; cursor: pointer;">
+                            <option value="swara">Swara-KWS (Primary Metric Learning)</option>
+                            <option value="openwakeword">openWakeWord (ONNX)</option>
+                            <option value="google">Google Cloud STT</option>
+                        </select>
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
                             <span>COMPANION VOICE LANGUAGE</span>
                         </div>
                         <select id="select-language" onchange="setVoiceLanguage(this.value)" style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; padding: 6px 10px; font-size: 12px; outline: none; cursor: pointer;">
@@ -2012,6 +2025,18 @@
                 if (extSlider && document.activeElement.id !== "slider-extroversion") {
                     extSlider.value = extVal;
                     document.getElementById("label-extroversion").innerText = `${extVal}%`;
+                }
+            }
+
+            // Update Wake Word Engine dropdown & badge
+            if (data.voice && data.voice.wake_word_engine) {
+                const engSelect = document.getElementById("select-wake-engine");
+                if (engSelect && document.activeElement.id !== "select-wake-engine") {
+                    engSelect.value = data.voice.wake_word_engine;
+                }
+                const badge = document.getElementById("badge-wake-engine");
+                if (badge) {
+                    badge.innerText = data.voice.wake_word_engine === "swara" ? "PRIMARY: SWARA-KWS" : data.voice.wake_word_engine.toUpperCase();
                 }
             }
 
@@ -3010,6 +3035,19 @@
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
                 body: JSON.stringify({extroversion: pct})
+            });
+        }
+
+        // Wake Word Engine setter
+        function setWakeEngine(engine) {
+            const badge = document.getElementById("badge-wake-engine");
+            if (badge) {
+                badge.innerText = engine === "swara" ? "PRIMARY: SWARA-KWS" : engine.toUpperCase();
+            }
+            fetch("/api/settings", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({wake_word_engine: engine})
             });
         }
 

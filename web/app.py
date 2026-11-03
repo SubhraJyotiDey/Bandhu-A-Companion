@@ -99,12 +99,14 @@ def create_app(daemon):
                 "language": daemon.config_manager.config.get("voice", {}).get("language", "en-US"),
                 "tts_provider": daemon.config_manager.config.get("voice", {}).get("tts_provider", "edge-tts"),
                 "wake_word": daemon.config_manager.config.get("voice", {}).get("wake_word", "jarvis"),
+                "wake_word_engine": daemon.config_manager.config.get("voice", {}).get("wake_word_engine", "swara"),
                 "wake_sensitivity": daemon.config_manager.config.get("voice", {}).get("wake_sensitivity", 0.5),
                 "auto_language_detection": daemon.config_manager.config.get("voice", {}).get("auto_language_detection", True),
                 "audio_output_sink": daemon.config_manager.config.get("voice", {}).get("audio_output_sink", "aec_sink"),
                 "sound_reactions": daemon.config_manager.config.get("voice", {}).get("sound_reactions", True),
                 "sink_volumes": sink_volumes,
-                "listening": daemon.voice_listening_active
+                "listening": daemon.voice_listening_active,
+                "swara_keywords": list(daemon.wake_detector.swara_engine.prototypes.keys()) if (hasattr(daemon.wake_detector, "swara_engine") and daemon.wake_detector.swara_engine is not None) else []
             },
             "personality": {
                 "extroversion": daemon.config_manager.config.get("personality", {}).get("extroversion", 0.7),
@@ -243,6 +245,15 @@ def create_app(daemon):
                 config["voice"] = {}
             config["voice"]["wake_word"] = str(data["wake_word"]).lower()
             daemon.log(f"[Portal] Wake Word set to: {data['wake_word']}")
+        if "wake_word_engine" in data:
+            if "voice" not in config:
+                config["voice"] = {}
+            engine_choice = str(data["wake_word_engine"]).lower()
+            config["voice"]["wake_word_engine"] = engine_choice
+            daemon.wake_detector.engine = engine_choice
+            if engine_choice in ("swara", "swara-kws"):
+                daemon.wake_detector._init_swara_kws()
+            daemon.log(f"[Portal] Wake Word Engine set to: {engine_choice}")
         if "wake_sensitivity" in data:
             if "voice" not in config:
                 config["voice"] = {}
@@ -586,6 +597,19 @@ def create_app(daemon):
         """Simulates a sudden loud noise trigger from UI."""
         daemon.trigger_audio_reactive_snap(volume=4500.0)
         return jsonify({"success": True})
+
+    @app.route("/api/swara/keywords", methods=["GET"])
+    def get_swara_keywords():
+        """Returns registered Swara-KWS wake words and status."""
+        if hasattr(daemon.wake_detector, "swara_engine") and daemon.wake_detector.swara_engine:
+            kws = list(daemon.wake_detector.swara_engine.prototypes.keys())
+            return jsonify({
+                "success": True,
+                "engine": daemon.wake_detector.engine,
+                "keywords": kws,
+                "biometrics_enrolled": daemon.wake_detector.swara_engine.biometrics.owner_voiceprint is not None
+            })
+        return jsonify({"success": False, "keywords": []})
 
     @app.route("/api/system/update", methods=["POST"])
     def system_update():

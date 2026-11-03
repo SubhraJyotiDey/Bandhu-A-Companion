@@ -83,14 +83,22 @@
   },
   "voice": {
     "wake_word": "bondhu",
-    "wake_word_engine": "openwakeword",
+    "wake_word_engine": "swara",
     "wake_sensitivity": 0.5,
     "language": "hi-IN",
     "speech_threshold": 0.8,
     "tts_provider": "edge-tts",
     "bluetooth_speaker_mac": "41:42:9D:09:4D:D3",
     "audio_output_sink": "aec_sink",
-    "sound_reactions": false
+    "sound_reactions": false,
+    "swara_kws": {
+      "threshold": 0.68,
+      "adaptive_threshold": true,
+      "use_biometric_lock": false,
+      "biometric_threshold": 0.88,
+      "noise_margin": 0.05,
+      "min_rms": 0.003
+    }
   },
   "zeroclaw": {
     "enabled": false,
