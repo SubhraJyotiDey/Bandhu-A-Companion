@@ -578,12 +578,11 @@ class VectorCrtEngine:
                 time.sleep(0.01)
                 continue
                 
-            # Interleave X/Y coordinates as L/R channel frames
-            stereo_buf = np.zeros((chunk, 2), dtype=np.int16)
-            for i in range(chunk):
-                pt = pts[buf_idx % num_pts]
-                stereo_buf[i, 0] = int(pt[0] * 32767) # L channel = Horizontal (X)
-                stereo_buf[i, 1] = int(pt[1] * 32767) # R channel = Vertical (Y)
-                buf_idx += 1
+            # Interleave X/Y coordinates as L/R channel frames safely clipped to signed 16-bit range
+            indices = (buf_idx + np.arange(chunk)) % num_pts
+            sampled_pts = pts[indices]
+            clipped_pts = np.clip(sampled_pts, -1.0, 1.0)
+            stereo_buf = (clipped_pts * 32767).astype(np.int16)
+            buf_idx = (buf_idx + chunk) % num_pts
                 
             self.stream.write(stereo_buf.flatten().tobytes())

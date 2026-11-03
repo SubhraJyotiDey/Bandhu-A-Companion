@@ -246,11 +246,20 @@ class CompanionDaemon:
         self.stt = STTManager(self.config_manager)
         self.brain = ZeroClawClient(self.config_manager)
         self.brain.daemon = self
-        from hardware.crt_engine import VectorCrtEngine
-        self.crt_engine = VectorCrtEngine(self.config_manager)
-        self.crt_engine.daemon = self
-        self.stt.crt_engine = self.crt_engine
-        self.tts.crt_engine = self.crt_engine
+        
+        # Vector CRT Deflection Engine (disabled by default for elder care / standard audio setups)
+        crt_enabled = self.config_manager.config.get("crt_engine", {}).get("enabled", False)
+        if crt_enabled:
+            from hardware.crt_engine import VectorCrtEngine
+            self.crt_engine = VectorCrtEngine(self.config_manager)
+            self.crt_engine.daemon = self
+            self.stt.crt_engine = self.crt_engine
+            self.tts.crt_engine = self.crt_engine
+        else:
+            self.crt_engine = None
+            self.stt.crt_engine = None
+            self.tts.crt_engine = None
+            
         self.games = CompanionGames(self.tts, self.servos)
         self.active_game = None
         

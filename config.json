@@ -97,6 +97,9 @@
     "api_url": "http://127.0.0.1:42617/api/chat",
     "api_token": "companion_token_12345"
   },
+  "crt_engine": {
+    "enabled": false
+  },
   "elder_care": {
     "patient_name": "Dadu",
     "patient_age": 74,
