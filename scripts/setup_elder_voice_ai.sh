@@ -97,10 +97,11 @@ cmake -B build \
     -DLLAMA_CURL=OFF \
     -DLLAMA_BUILD_SERVER=OFF \
     -DLLAMA_BUILD_TESTS=OFF \
-    -DLLAMA_BUILD_EXAMPLES=OFF
+    -DLLAMA_BUILD_EXAMPLES=ON \
+    -DLLAMA_BUILD_TOOLS=ON
 
 # Compile using single thread (-j1) to strictly avoid compiler memory exhaustion
-cmake --build build --config Release -t llama-cli -j1
+cmake --build build --config Release --target llama-cli -j1
 
 cd "$PROJECT_ROOT"
 
