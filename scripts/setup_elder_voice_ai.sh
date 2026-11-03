@@ -90,15 +90,11 @@ cd "$PROJECT_ROOT/llama.cpp"
 # Clean previous failed build
 rm -rf build
 
-# Configure strictly minimal CLI (disabling curl, web UI, server, and tests)
+# Configure build with armv8-a and disable curl
 cmake -B build \
     -DGGML_NATIVE=OFF \
     -DGGML_CPU_ARM_ARCH=armv8-a \
-    -DLLAMA_CURL=OFF \
-    -DLLAMA_BUILD_SERVER=OFF \
-    -DLLAMA_BUILD_TESTS=OFF \
-    -DLLAMA_BUILD_EXAMPLES=ON \
-    -DLLAMA_BUILD_TOOLS=ON
+    -DLLAMA_CURL=OFF
 
 # Compile using single thread (-j1) to strictly avoid compiler memory exhaustion
 cmake --build build --config Release --target llama-cli -j1
